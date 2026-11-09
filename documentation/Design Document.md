@@ -42,6 +42,9 @@ Tests and experiments are different things and live in different places.
 - **Where a setting lives.** A setting that is generally useful to the piece goes in the piece's
   `Config`. A setting only one experiment needs lives in that experiment's own config header, so
   deleting the experiment leaves no dross in main config.
+- **Experiments may hard-code values.** The rule against hard-coded values applies to the piece
+  and the shared layer, not to throwaway experiments. An experiment may keep its tuning values in
+  a settings header (handy when tuning by ear) or directly in code.
 
 ### Configuration and secrets
 

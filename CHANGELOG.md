@@ -23,6 +23,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Conversation experiment (`detectors/experiments/conversation/`), step 1 of the conversation
+  suite: two slots, heat following a bell curve over the conversation, heat-driven turn lengths and
+  gaps, per-slot talkativeness and wordiness drawn from a seed, rendered to a WAV with each slot's
+  real voice. Verified by checking the WAV against the generated score.
+- Design decision: experiments may hard-code values; the no-hard-coded-values rule applies to the
+  piece and shared code.
 - Design decision: the conversation suite is a generated, café-style exchange driven by heat (a
   bell curve over the conversation) and per-slot talkativeness and wordiness; human turn-taking
   research recorded. `cast`, `turn`, `heat`, `talkativeness`, `wordiness`, and `temperament`
