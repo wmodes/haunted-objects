@@ -1,0 +1,6 @@
+# Wokwi simulator project config for the blink experiment.
+# Wokwi does not compile: run `pio run` first so these build outputs exist.
+[wokwi]
+version = 1
+firmware = '.pio/build/esp32dev/firmware.bin'
+elf = '.pio/build/esp32dev/firmware.elf'

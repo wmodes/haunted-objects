@@ -51,6 +51,29 @@ cp detectors/include/secrets_detectors.h.example detectors/include/secrets_detec
 `secrets_*.h` covers all of them. (Credentials are also compiled into the firmware image, so
 protect the device and its binaries too.)
 
+## Emulation (Wokwi)
+
+Firmware can run on a simulated ESP32 with no board attached, using the Wokwi CLI. It checks
+logic and signals, not sound, loudness, or piezo resonance.
+
+One-time setup:
+1. Install the CLI: `curl -L https://wokwi.com/ci/install.sh | sh` (installs `wokwi-cli` into
+   `~/bin`).
+2. Create an API token on the Wokwi CI dashboard, then `cp .env.example .env` and put the token
+   in `.env`. `.env` is gitignored; never commit it.
+
+Wokwi does not compile, so build first, then simulate. From the repo root:
+
+```
+pio run -d detectors/experiments/blink
+(set -a; . ./.env; set +a; wokwi-cli --timeout 8000 --expect-text 'heartbeat #3 led on' detectors/experiments/blink)
+```
+
+The run passes when the simulated serial output contains the expected text. `--timeout` is in
+simulated milliseconds. Each simulated project holds a `wokwi.toml` (points at the build output)
+and a `diagram.json` (the virtual board). Free accounts have a monthly simulation-time limit; see
+wokwi.com/pricing.
+
 ## Experiments
 
 Throwaway probes live in `detectors/experiments/`, one PlatformIO project per folder, and never

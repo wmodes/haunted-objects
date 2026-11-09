@@ -19,6 +19,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the ELEGOO ESP32 board.
 - Design decision: tests (formal, `test/`) are separate from experiments (throwaway,
   `experiments/`, one-way dependency); `test` and `experiment` added to the lexicon.
+- Wokwi emulation: the blink experiment runs on a simulated ESP32 via `wokwi-cli`
+  (`wokwi.toml`, `diagram.json`), passing on its serial output. The API token lives in the
+  gitignored `.env`; `.env.example` is the committed template.
 - Layered config and secrets code: `SharedConfig` and `SharedSecrets` in `shared/include/`,
   `Config` and `Secrets` in `detectors/include/`. Real secrets live in gitignored `secrets_*.h`
   files with committed `.h.example` templates.

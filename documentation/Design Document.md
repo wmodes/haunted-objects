@@ -100,6 +100,9 @@ The piece is a hybrid of emergent and composed behavior.
   project inside this repo.
 - The priority is that Claude Code can build, flash, and read serial output directly.
 - OTA updates over WiFi later, since the board will end up hidden in an installation.
+- Firmware can be emulated on the development Mac with the Wokwi CLI: a simulated classic ESP32,
+  run headless, with assertions on its serial output. This lets logic be exercised without
+  hardware. Emulation checks signals and logic, not sound, loudness, or piezo resonance.
 
 ## Open questions (smoke alarm piece)
 
