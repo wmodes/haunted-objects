@@ -111,7 +111,7 @@ struct TimingConfig {
    * 1 makes heated people answer faster. Interpolated by heat. Small values push a heated
    * exchange's pauses right down toward zero, so chirps run almost together.
    */
-  double hotThinkingScale = 0.15;
+  double hotThinkingScale = 0.6;
 
   /**
    * Extra silence when the same slot keeps the floor instead of passing it, in milliseconds. A
@@ -130,7 +130,7 @@ struct TimingConfig {
    * The shortest silence between ordinary turns at full heat, in milliseconds. Lower than the cool
    * floor, so a heated exchange can run almost together. Must not exceed the cool floor.
    */
-  double hotMinOrdinaryGapMilliseconds = 10.0;
+  double hotMinOrdinaryGapMilliseconds = 200.0;
 
   /**
    * The longest silence between ordinary turns, in milliseconds. A hard ceiling: no ordinary
