@@ -84,6 +84,7 @@ Settings only an experiment needs stay in that experiment's own config header.
 | Experiment | What it does | Run |
 |---|---|---|
 | `blink` | Blinks the on-board LED (GPIO2) and prints a heartbeat over serial; proves build, flash, config, and serial. | `pio run -d detectors/experiments/blink -t upload`, then `pio device monitor -d detectors/experiments/blink` |
+| `chirp-table` | Host-only (no board). Renders slots 1-6 of the detector profile table to a WAV, each at its own length, pitch, and interval with a random warmup offset, and prints a timeline. Waveform (sine, square, sawtooth), slots, duration, and seed are settings in `ChirpTableConfig.h`. | `pio run -d detectors/experiments/chirp-table`, then run `detectors/experiments/chirp-table/.pio/build/native/program` from the folder where the WAV should land (it writes `chirp-table.wav` there), then `afplay chirp-table.wav` |
 
 ## Testbenches
 

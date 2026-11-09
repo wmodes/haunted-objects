@@ -215,9 +215,11 @@ smoke alarm was found.
 - **Not found:** the MC145010's horn-drive details, the Allegro A5348/A5358 horn drivers, and any
   measurement of a real smoke alarm's waveform or spectrum.
 
-Open: which waveform sounds right. The chirp-table experiment renders sine, square, and sawtooth
-so they can be compared by ear against how the real alarms sounded; square is the default because
-it matches the research and what the H-bridge produces.
+Decision: waveform is a setting, not hard-coded. The detector is expected to drive its horns with
+a square wave (what the H-bridge produces natively and what the research documents). The chirp-table
+experiment, which plays through computer speakers, defaults to sine, and also offers square and
+sawtooth so they can be compared by ear against how the real alarms sounded. Open: which waveform
+the real horns should get; judge by ear once the horns are wired.
 
 ### Tooling
 

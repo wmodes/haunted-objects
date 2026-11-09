@@ -11,5 +11,8 @@ CLAUDE.md
 secrets_*.h
 .env
 
+# Audio rendered by experiments (regenerate, never commit)
+*.wav
+
 # macOS
 .DS_Store
