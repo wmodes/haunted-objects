@@ -23,6 +23,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Changed: detector profile chirp frequencies redrawn from 3000-3500 Hz (was 2850-3250 Hz, an
+  unsourced guess that sounded too low); lengths, intervals, and models unchanged. Research on
+  typical smoke-alarm pitch (about 3100-3200 Hz) recorded in the Design Document.
 - Chirp-table experiment (`detectors/experiments/chirp-table/`): a host-only PlatformIO `native`
   program that renders slots 1-6 of the detector profile table to a WAV, with a random warmup
   offset per slot and a `waveform` setting (sine default; square and sawtooth). Verified by

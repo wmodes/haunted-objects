@@ -119,9 +119,9 @@ NFPA 72 requires the low-battery signal at least once a minute for 7 days
 ([excerpt](https://fsc.ri.gov/media/156/download)), which caps commercial intervals at about 60 s.
 The overall interval range is about 30-60 s.
 
-Not sourced, so assumed: chirp frequency (placed near 3 kHz, 2850-3250 Hz, where the horns
-resonate; tune each by ear once the horns are wired), and chirp length for the Kidde and
-BRK/First Alert models. A 10 ms burst into a resonant piezo housing probably sounds longer than
+Chirp frequency is drawn from 3000-3500 Hz, based on patent test results and a product manual
+(see the research notes below); tune each horn by ear once the horns are wired. Not sourced, so
+assumed: chirp length for the Kidde and BRK/First Alert models. A 10 ms burst into a resonant piezo housing probably sounds longer than
 10 ms because the housing rings (unverified inference); judge by ear on the real horns.
 
 #### Redrawing the profile table
@@ -147,10 +147,13 @@ Ranges used for the current draw. Ranges marked "assumed" are not from a source:
 | Kidde-style | 8.0-12.0 ms (assumed) | 30.0-40.0 s | interval from Kidde; length from the chip datasheets |
 | BRK/First-Alert-style | 8.0-12.0 ms (assumed) | 55.0-60.0 s | interval from BRK and First Alert, capped at 60 s by NFPA 72; length from the chip datasheets |
 
-Chirp frequency for every model: 2850-3250 Hz (assumed; see below).
+Chirp frequency for every model: 3000-3500 Hz, rounded to the nearest 10 Hz (see the research
+notes). The first draw used 2850-3250 Hz, an unsourced guess that sounded too low, so only the
+frequencies were redrawn and the lengths, intervals, and models were kept.
 
-The current table was produced with Python's `random.Random(20261109)`. The script was a
-throwaway and was not kept, so the seed alone cannot reproduce it. These parameters can.
+The lengths and intervals were drawn with Python's `random.Random(20261109)` and the frequencies
+with `random.Random(20261111)`. The scripts were throwaways and were not kept, so the seeds alone
+cannot reproduce the table. These parameters can.
 
 #### Research notes and caveats
 
@@ -171,8 +174,21 @@ throwaway and was not kept, so the seed alone cannot reproduce it. These paramet
   unconfirmed.
 - **Cold triggers low-battery chirps.** Kidde says cold air can start the low-battery chirp,
   which explains chirps that begin overnight. A possible source of realistic variation, not used.
-- **Could not find:** the chirp frequency from any source; a measured recording or spectrogram of
-  a real chirp; the UL 217 text itself; chirp length for Kidde, BRK, or First Alert models.
+- **Chirp frequency.** Typical smoke-alarm horns sit near 3100-3200 Hz. A patent describes
+  standard detectors as producing a 3100-3200 Hz pure tone. A patent citing tests of about 18
+  detectors reports post-1996 units peaking near 3200 Hz, plus or minus about 10%. A UL 217 alarm
+  manual states 3.2 +/- 0.3 kHz ([X-Sense XS03](https://manuals.online/x-sense/smoke-alarm/xs03/user-manual/15mgz)),
+  and a [UK government page](https://www.gov.uk/government/news/hard-wired-for-sound-love-to-hate-your-smoke-alarm--2)
+  says about 3000 Hz. The patents were found by search and I could not tell which said what
+  (candidates: [US 12112610](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12112610),
+  [US 7015807](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/7015807)). One
+  [First Alert manual](https://manualsfile.com/product/p9fshpd34c.html) says its horn sweeps
+  2200-3400 Hz (a specification, not a measurement). These are patents and a manual, not detector
+  datasheets. The first draw used 2850-3250 Hz, an unsourced guess whose low end (2910-2980 Hz in
+  four slots) sounded unlikely; the table now uses 3000-3500 Hz.
+- **Could not find:** a chirp frequency in any detector datasheet; a measured recording or
+  spectrogram of a real chirp; the UL 217 text itself; chirp length for Kidde, BRK, or First Alert
+  models.
 - **How to firm this up.** Read the cited datasheets directly; measure a real working alarm if one
   becomes available (the salvaged units no longer work); and judge the final chirp length and
   pitch by ear on the real horns, since each horn's housing resonates and rings.
@@ -205,9 +221,9 @@ smoke alarm was found.
   A vendor frequency scan shows a dominant peak at the fundamental with weaker harmonics, and the
   vendor says square drive gives more sound level than sine.
 - **Horn pitch examples cluster around 2.8-3.4 kHz** (a 2.8 kHz scan, the 3.4 kHz application-note
-  example, and [SparkFun's 3 kHz unit](https://sparkfun.com/products/13940)). That is consistent
-  with the 2850-3250 Hz range assumed in the profile table, though none of it is specific to smoke
-  alarms.
+  example, and [SparkFun's 3 kHz unit](https://sparkfun.com/products/13940)). That fits the
+  3000-3500 Hz range now used in the profile table; the smoke-alarm-specific figures are in the
+  research notes above.
 - **Sawtooth: no evidence found.** Nothing I read describes a sawtooth drive. A sawtooth would
   need deliberately shaped (PWM-synthesized) drive; the H-bridge produces a square natively. The
   piezo and its cavity filter whatever they are given, so a real horn may sound buzzier than a
