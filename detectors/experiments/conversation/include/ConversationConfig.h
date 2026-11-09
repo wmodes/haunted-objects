@@ -108,9 +108,10 @@ struct TimingConfig {
 
   /**
    * Factor applied to thinking pauses at full heat; 1 means heat does not shorten them, and below
-   * 1 makes heated people answer faster. Interpolated by heat.
+   * 1 makes heated people answer faster. Interpolated by heat. Small values push a heated
+   * exchange's pauses right down toward zero, so chirps run almost together.
    */
-  double hotThinkingScale = 0.6;
+  double hotThinkingScale = 0.15;
 
   /**
    * Extra silence when the same slot keeps the floor instead of passing it, in milliseconds. A
@@ -119,10 +120,17 @@ struct TimingConfig {
   double sameSpeakerExtraPauseMilliseconds = 140.0;
 
   /**
-   * The shortest silence between ordinary turns, in milliseconds. A hard floor: no ordinary pause
-   * is quicker. Jump-ins are exempt, because they are meant to crowd.
+   * The shortest silence between ordinary turns when the conversation is cool, in milliseconds. A
+   * hard floor: no ordinary pause is quicker. Jump-ins are exempt, because they are meant to
+   * crowd. The floor slides down to the hot value below as heat rises.
    */
   double minOrdinaryGapMilliseconds = 200.0;
+
+  /**
+   * The shortest silence between ordinary turns at full heat, in milliseconds. Lower than the cool
+   * floor, so a heated exchange can run almost together. Must not exceed the cool floor.
+   */
+  double hotMinOrdinaryGapMilliseconds = 10.0;
 
   /**
    * The longest silence between ordinary turns, in milliseconds. A hard ceiling: no ordinary
@@ -147,9 +155,10 @@ struct TimingConfig {
 
   /**
    * When a speaker jumps in, how soon after the other's turn started it lands, in milliseconds.
-   * Chirps are about 10 ms long, so small values make near-simultaneous chirps.
+   * Chirps are about 10 ms long, so two are heard colliding only if they start within a few tens
+   * of milliseconds of each other. Larger values just sound quick, not like talking over.
    */
-  Range overlapOnsetMilliseconds{10.0, 150.0};
+  Range overlapOnsetMilliseconds{0.0, 35.0};
 
   /**
    * Chance of a lapse (a long silence) after a turn, at its greatest: when heat is zero and the
@@ -336,6 +345,10 @@ static_assert(isProbability(kDefaults.timing.overlapStartHeat) &&
                   isProbability(kDefaults.timing.overlapFullHeat) &&
                   kDefaults.timing.overlapStartHeat < kDefaults.timing.overlapFullHeat,
               "overlapStartHeat must be below overlapFullHeat, both within 0..1");
+static_assert(kDefaults.timing.hotMinOrdinaryGapMilliseconds >= 0.0 &&
+                  kDefaults.timing.hotMinOrdinaryGapMilliseconds <=
+                      kDefaults.timing.minOrdinaryGapMilliseconds,
+              "hotMinOrdinaryGapMilliseconds must be within 0 and the cool floor");
 static_assert(isProbability(kDefaults.timing.hotOverlapProbability),
               "hotOverlapProbability must be within 0..1");
 static_assert(isOrdered(kDefaults.timing.overlapOnsetMilliseconds) &&

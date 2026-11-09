@@ -189,16 +189,19 @@ Conversation ConversationGenerator::generate() const {
           blend(1.0, timing.hotThinkingScale, heatNow);
       const double extraMilliseconds =
           sameSpeakerNext ? timing.sameSpeakerExtraPauseMilliseconds : 0.0;
+      // The floor slides down with heat, so a heated exchange can run almost together.
+      const double floorMilliseconds = blend(timing.minOrdinaryGapMilliseconds,
+                                             timing.hotMinOrdinaryGapMilliseconds, heatNow);
       gapMilliseconds = 0.0;
       for (int attempt = 0; attempt < kBoundedDrawAttempts; ++attempt) {
         gapMilliseconds = drawSkewed(medianMilliseconds, timing.gapSpread, rng) + extraMilliseconds;
-        if (gapMilliseconds >= timing.minOrdinaryGapMilliseconds &&
+        if (gapMilliseconds >= floorMilliseconds &&
             gapMilliseconds <= timing.maxOrdinaryGapMilliseconds) {
           break;
         }
       }
-      gapMilliseconds = std::clamp(gapMilliseconds, timing.minOrdinaryGapMilliseconds,
-                                   timing.maxOrdinaryGapMilliseconds);
+      gapMilliseconds =
+          std::clamp(gapMilliseconds, floorMilliseconds, timing.maxOrdinaryGapMilliseconds);
       intervalMilliseconds = lastChirpOffsetMilliseconds + gapMilliseconds;
     }
 

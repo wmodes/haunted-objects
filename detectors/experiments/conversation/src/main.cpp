@@ -87,6 +87,7 @@ struct Statistics {
   std::size_t bandTurns[kHeatBands] = {0, 0, 0};
   std::size_t bandOverlaps[kHeatBands] = {0, 0, 0};
   std::vector<double> bandSpacingSeconds[kHeatBands];
+  std::vector<double> bandOrdinaryGapSeconds[kHeatBands];
   std::vector<double> sameSpeakerGapSeconds;    // ordinary pauses when the floor is kept
   std::vector<double> speakerChangeGapSeconds;  // ordinary pauses when the floor passes
   std::vector<double> ordinaryGapSeconds;       // every ordinary pause
@@ -135,6 +136,7 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
       (turn.followsSameSpeaker ? stats.sameSpeakerGapSeconds : stats.speakerChangeGapSeconds)
           .push_back(turn.gapBeforeSeconds);
       stats.ordinaryGapSeconds.push_back(turn.gapBeforeSeconds);
+      stats.bandOrdinaryGapSeconds[band].push_back(turn.gapBeforeSeconds);
       ordinaryGapSum += turn.gapBeforeSeconds;
       ++ordinaryGapCount;
       const double logGap = std::log(turn.gapBeforeSeconds);
@@ -174,12 +176,22 @@ void printStatistics(const Statistics& stats) {
               percentile(stats.spacingSeconds, 0.5) * 1000.0,
               percentile(stats.spacingSeconds, 0.25) * 1000.0,
               percentile(stats.spacingSeconds, 0.75) * 1000.0);
-  std::printf("  by heat:\n");
+  std::printf("  by heat (talking over = landing within a few tens of ms, heard as a collision):\n");
   for (int band = 0; band < kHeatBands; ++band) {
-    std::printf("    %-14s %6zu turns   median spacing %5.0f ms   talking over %4.1f%%\n",
+    std::size_t under100 = 0;
+    std::size_t under30 = 0;
+    for (double gap : stats.bandOrdinaryGapSeconds[band]) {
+      under100 += gap < 0.100 ? 1 : 0;
+      under30 += gap < 0.030 ? 1 : 0;
+    }
+    const double ordinary =
+        static_cast<double>(std::max<std::size_t>(stats.bandOrdinaryGapSeconds[band].size(), 1));
+    std::printf("    %-14s %6zu turns   median spacing %5.0f ms   talking over %4.1f%%   "
+                "ordinary pauses under 100 ms %4.1f%%, under 30 ms %4.1f%%\n",
                 kHeatBandNames[band], stats.bandTurns[band],
                 percentile(stats.bandSpacingSeconds[band], 0.5) * 1000.0,
-                100.0 * stats.bandOverlaps[band] / std::max<std::size_t>(stats.bandTurns[band], 1));
+                100.0 * stats.bandOverlaps[band] / std::max<std::size_t>(stats.bandTurns[band], 1),
+                100.0 * under100 / ordinary, 100.0 * under30 / ordinary);
   }
 
   // The rhythm of the pauses: how varied they are, and whether they come in streaks.
@@ -267,7 +279,21 @@ int main() {
 
   std::printf("\nheat curve: peak %.2f at %.1f s, width %.1f s\n", conversation.heat.peakHeat(),
               conversation.heat.peakTimeSeconds(), conversation.heat.widthSeconds());
-  std::printf("%zu turns, %zu chirps\n\n", conversation.turns.size(), conversation.chirps.size());
+  std::printf("%zu turns, %zu chirps\n", conversation.turns.size(), conversation.chirps.size());
+
+  // Chirps that start within a chirp's length (plus the analysis gap) of another overlap in the
+  // audio, so a burst detector counts them as one. Counted here to reconcile it with the WAV.
+  std::vector<double> chirpStarts;
+  for (const ChirpEvent& chirp : conversation.chirps) {
+    chirpStarts.push_back(chirp.startSeconds);
+  }
+  std::sort(chirpStarts.begin(), chirpStarts.end());
+  std::size_t colliding = 0;
+  for (std::size_t i = 1; i < chirpStarts.size(); ++i) {
+    colliding += (chirpStarts[i] - chirpStarts[i - 1] < 0.0143) ? 1 : 0;
+  }
+  std::printf("%zu chirps start within 14 ms of the one before (they overlap in the audio)\n\n",
+              colliding);
   // About eighteen rows, whatever the length.
   printHeatProfile(conversation, conversation.durationSeconds, conversation.durationSeconds / 18.0);
 
