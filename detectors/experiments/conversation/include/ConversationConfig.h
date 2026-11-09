@@ -4,10 +4,10 @@
  *
  * Anything generally useful to the piece lives in the piece's own config; anything only this
  * experiment needs lives here, so deleting the experiment leaves no stray settings behind. Most
- * values below are starting points to tune by ear. The timing anchors come from the turn-taking
- * literature, read through search summaries (see the Design Document): median spoken utterance
- * about 0.9 s, gaps between speakers mostly short with a long tail, and same-speaker pauses about
- * 140 ms longer than speaker-change gaps. How a pause depends on difficulty is a design choice.
+ * values below are starting points to tune by ear. A chirp *is* a turn's speech, so the only
+ * timing is the silence between chirps; its size follows how hard the last turn was to answer.
+ * The literature anchors (see the Design Document) are that pauses are skewed (mostly short,
+ * with a long tail) and that a same-speaker continuation pauses about 140 ms longer.
  */
 #pragma once
 
@@ -31,8 +31,8 @@ enum class Waveform {
 /**
  * Heat follows a bell curve over the conversation. Each conversation draws its own curve from
  * the ranges below, so no two conversations have the same arc. Heat drives overlap and (in later
- * steps) recruitment, and shortens utterances and thinking pauses a little; it does not slow the
- * opening, because conversations open briskly.
+ * steps) recruitment, and shortens thinking pauses a little; it does not slow the opening,
+ * because conversations open briskly.
  */
 struct HeatConfig {
   /** How hot the conversation gets at its peak, 0 to 1. Higher is a more heated exchange. */
@@ -90,38 +90,21 @@ struct DifficultyConfig {
 };
 
 /**
- * Timing between turns. Each chirp marks an unheard utterance, so the time from one turn's start
- * to the next turn's start is the implied speaking time plus a pause. Utterances and pauses are
- * skewed (log-normal): mostly short, with a long tail. The pause median slides with difficulty.
+ * Timing between turns: the silence between one chirp and the next. It is skewed (log-normal),
+ * mostly near its median with a long-ish tail, and the median slides with difficulty.
  */
 struct TimingConfig {
-  /** Median length of the speech a chirp stands in for, in milliseconds. Higher is slower. */
-  double utteranceMedianMilliseconds = 900.0;
+  /** Median silence before replying to a trivial turn (difficulty 0), in milliseconds. */
+  double easyGapMedianMilliseconds = 300.0;
+
+  /** Median silence before replying to a hard turn (difficulty 1), in milliseconds. */
+  double hardGapMedianMilliseconds = 1800.0;
 
   /**
-   * Spread of utterance lengths (the log-normal sigma). 0 makes every utterance the median;
-   * around 0.8 puts a quarter under about 0.5 s and a quarter over about 1.5 s.
+   * Spread of the silence around its median (the log-normal sigma). Difficulty explains most of
+   * the variety, so this is modest. Larger gives more surprise.
    */
-  double utteranceSpread = 0.8;
-
-  /**
-   * Factor applied to the utterance median at full heat; 1 means heat does not shorten
-   * utterances, and below 1 makes a hot exchange more clipped. Interpolated by heat.
-   */
-  double hotUtteranceScale = 0.8;
-
-  /** Median pause before replying to a trivial turn (difficulty 0), in milliseconds. */
-  double easyGapMedianMilliseconds = 87.0;
-
-  /** Median pause before replying to a hard turn (difficulty 1), in milliseconds. */
-  double hardGapMedianMilliseconds = 825.0;
-
-  /**
-   * Spread of the pause around its median (the log-normal sigma). Difficulty explains most of
-   * the variety, so this is smaller than a one-size-fits-all pause would need. Larger gives more
-   * surprise.
-   */
-  double gapSpread = 0.375;
+  double gapSpread = 0.3;
 
   /**
    * Factor applied to thinking pauses at full heat; 1 means heat does not shorten them, and below
@@ -130,15 +113,36 @@ struct TimingConfig {
   double hotThinkingScale = 0.6;
 
   /**
-   * Extra pause when the same slot keeps the floor instead of passing it, in milliseconds. A slot
-   * that continues sounds like it is still thinking. Raising it makes that hesitation clearer.
+   * Extra silence when the same slot keeps the floor instead of passing it, in milliseconds. A
+   * slot that continues sounds like it is still thinking. Raising it makes that clearer.
    */
   double sameSpeakerExtraPauseMilliseconds = 140.0;
 
-  /** Chance, when cold, that the next speaker jumps in on top of the current one, 0 to 1. */
-  double coldOverlapProbability = 0.04;
+  /**
+   * The shortest silence between ordinary turns, in milliseconds. A hard floor: no ordinary pause
+   * is quicker. Jump-ins are exempt, because they are meant to crowd.
+   */
+  double minOrdinaryGapMilliseconds = 200.0;
 
-  /** Chance, when hot, that the next speaker jumps in on top of the current one, 0 to 1. */
+  /**
+   * The longest silence between ordinary turns, in milliseconds. A hard ceiling: no ordinary
+   * pause is longer. Lapses are exempt, because they are meant to be long.
+   */
+  double maxOrdinaryGapMilliseconds = 2400.0;
+
+  /**
+   * Heat below which nobody jumps in, 0 to 1. Keeps the cool opening orderly: talking over only
+   * appears as heat builds.
+   */
+  double overlapStartHeat = 0.3;
+
+  /**
+   * Heat at which the chance of a jump-in reaches its full value, 0 to 1 (above overlapStartHeat).
+   * The chance ramps smoothly between the two.
+   */
+  double overlapFullHeat = 0.8;
+
+  /** Chance that the next speaker jumps in on top of the current one, at full heat, 0 to 1. */
   double hotOverlapProbability = 0.35;
 
   /**
@@ -152,20 +156,20 @@ struct TimingConfig {
    * conversation is at its very end, 0 to 1. Lapses only become likely after the peak, as heat
    * falls, so the opening stays brisk and the ending trails off.
    */
-  double lapseMaxProbability = 0.25;
+  double lapseMaxProbability = 0.12;
 
   /** Length range of a lapse, in seconds. */
   Range lapseSeconds{1.5, 5.0};
 
   /**
-   * Time between the two chirps of a two-chirp turn when answering a trivial turn, in
+   * Silence between the two chirps of a two-chirp turn when answering a trivial turn, in
    * milliseconds ("Well." "Yeah.").
    */
   double doubleChirpSpacingEasyMilliseconds = 182.0;
 
   /**
-   * Time between the two chirps of a two-chirp turn when answering a hard turn, in milliseconds
-   * ("Well... part time."). Interpolated by difficulty.
+   * Silence between the two chirps of a two-chirp turn when answering a hard turn, in
+   * milliseconds ("Well... part time."). Interpolated by difficulty.
    */
   double doubleChirpSpacingHardMilliseconds = 577.0;
 
@@ -310,10 +314,6 @@ static_assert(isProbability(kDefaults.difficulty.topicShiftProbability),
 static_assert(kDefaults.difficulty.topicShiftSkew > 0.0, "topicShiftSkew must be above 0");
 static_assert(kDefaults.difficulty.driftSpread >= 0.0, "driftSpread must not be negative");
 
-static_assert(kDefaults.timing.utteranceMedianMilliseconds > 0.0,
-              "utteranceMedianMilliseconds must be positive");
-static_assert(kDefaults.timing.utteranceSpread >= 0.0, "utteranceSpread must not be negative");
-static_assert(kDefaults.timing.hotUtteranceScale > 0.0, "hotUtteranceScale must be positive");
 static_assert(kDefaults.timing.easyGapMedianMilliseconds > 0.0,
               "easyGapMedianMilliseconds must be positive");
 static_assert(kDefaults.timing.hardGapMedianMilliseconds > 0.0,
@@ -322,9 +322,16 @@ static_assert(kDefaults.timing.gapSpread >= 0.0, "gapSpread must not be negative
 static_assert(kDefaults.timing.hotThinkingScale > 0.0, "hotThinkingScale must be positive");
 static_assert(kDefaults.timing.sameSpeakerExtraPauseMilliseconds >= 0.0,
               "sameSpeakerExtraPauseMilliseconds must not be negative");
-static_assert(isProbability(kDefaults.timing.coldOverlapProbability) &&
-                  isProbability(kDefaults.timing.hotOverlapProbability),
-              "overlap probabilities must be within 0..1");
+static_assert(kDefaults.timing.minOrdinaryGapMilliseconds > 0.0 &&
+                  kDefaults.timing.minOrdinaryGapMilliseconds <
+                      kDefaults.timing.maxOrdinaryGapMilliseconds,
+              "the ordinary gap bounds must be positive and ordered");
+static_assert(isProbability(kDefaults.timing.overlapStartHeat) &&
+                  isProbability(kDefaults.timing.overlapFullHeat) &&
+                  kDefaults.timing.overlapStartHeat < kDefaults.timing.overlapFullHeat,
+              "overlapStartHeat must be below overlapFullHeat, both within 0..1");
+static_assert(isProbability(kDefaults.timing.hotOverlapProbability),
+              "hotOverlapProbability must be within 0..1");
 static_assert(isOrdered(kDefaults.timing.overlapOnsetMilliseconds) &&
                   kDefaults.timing.overlapOnsetMilliseconds.min >= 0.0,
               "overlapOnsetMilliseconds must be an ordered, non-negative range");

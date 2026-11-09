@@ -13,6 +13,12 @@ namespace {
 
 constexpr double kMillisecondsPerSecond = 1000.0;
 
+/**
+ * How many times a bounded draw is retried before it is simply clamped. Redrawing keeps the shape
+ * of the distribution (no pile-up at the bounds); the clamp is only a backstop.
+ */
+constexpr int kBoundedDrawAttempts = 32;
+
 double drawFrom(const Range& range, std::mt19937& rng) {
   return std::uniform_real_distribution<double>(range.min, range.max)(rng);
 }
@@ -24,8 +30,8 @@ double blend(double from, double to, double amount) {
 
 /**
  * Position `amount` (0..1) of the way from `from` to `to` on a log scale, so equal steps in
- * `amount` multiply the value by equal factors. Right for timing, where 60 ms to 1200 ms is a
- * twenty-fold range and the middle should be about 270 ms, not 630 ms.
+ * `amount` multiply the value by equal factors. Right for timing, where 300 ms to 1800 ms is a
+ * six-fold range and the middle should be about 735 ms, not 1050 ms.
  */
 double blendLog(double from, double to, double amount) {
   return std::exp(blend(std::log(from), std::log(to), amount));
@@ -121,7 +127,7 @@ Conversation ConversationGenerator::generate() const {
         blend(temperament.coldDoubleChirpFraction, 1.0, heatNow);
     const unsigned chirpCount = std::bernoulli_distribution(doubleChance)(rng) ? 2u : 1u;
 
-    // The pause inside a two-chirp turn ("Well... part time") grows with how hard the answered
+    // The silence inside a two-chirp turn ("Well... part time") grows with how hard the answered
     // turn was.
     const double innerSpacingMilliseconds =
         drawSkewed(blendLog(timing.doubleChirpSpacingEasyMilliseconds,
@@ -136,14 +142,8 @@ Conversation ConversationGenerator::generate() const {
       conversation.chirps.push_back({participant.slot, chirpStartSeconds});
       lastChirpEndSeconds[speaker] = chirpStartSeconds + chirpLengthSeconds;
     }
-
-    // The unheard utterance this turn stands in for: skewed, and a little shorter when hot.
-    double utteranceMilliseconds = drawSkewed(
-        timing.utteranceMedianMilliseconds * blend(1.0, timing.hotUtteranceScale, heatNow),
-        timing.utteranceSpread, rng);
-    if (chirpCount == 2) {
-      utteranceMilliseconds += innerSpacingMilliseconds;
-    }
+    // The silence before the next turn is counted from this turn's last chirp.
+    const double lastChirpOffsetMilliseconds = (chirpCount == 2) ? innerSpacingMilliseconds : 0.0;
 
     // How hard this turn is to answer. It sets the pause before the reply.
     const double difficulty = drawDifficulty(config_.difficulty, demand, rng);
@@ -163,28 +163,40 @@ Conversation ConversationGenerator::generate() const {
     bool lapseNext = false;
     double intervalMilliseconds;
 
+    // Jump-ins only appear as heat builds: none in the cool opening.
     const double overlapChance =
-        blend(timing.coldOverlapProbability, timing.hotOverlapProbability, heatNow);
+        timing.hotOverlapProbability *
+        smoothstep((heatNow - timing.overlapStartHeat) /
+                   (timing.overlapFullHeat - timing.overlapStartHeat));
     if (!sameSpeakerNext && std::bernoulli_distribution(overlapChance)(rng)) {
       // Jumping in: the next speaker starts almost on top of this turn's start.
       overlapNext = true;
       intervalMilliseconds = drawFrom(timing.overlapOnsetMilliseconds, rng);
-      gapMilliseconds = intervalMilliseconds - utteranceMilliseconds;
+      gapMilliseconds = intervalMilliseconds;
     } else if (std::bernoulli_distribution(lapseChance)(rng)) {
       lapseNext = true;
       gapMilliseconds = drawFrom(timing.lapseSeconds, rng) * kMillisecondsPerSecond;
-      intervalMilliseconds = utteranceMilliseconds + gapMilliseconds;
+      intervalMilliseconds = lastChirpOffsetMilliseconds + gapMilliseconds;
     } else {
-      // An ordinary pause: short for something easy, long for something hard to answer, and a
+      // An ordinary silence: short for something easy, long for something hard to answer, and a
       // little shorter when heated. A slot keeping the floor takes longer, as if still thinking.
+      // It is redrawn until it falls inside the hard bounds, so there are no outliers.
       const double medianMilliseconds =
           blendLog(timing.easyGapMedianMilliseconds, timing.hardGapMedianMilliseconds, difficulty) *
           blend(1.0, timing.hotThinkingScale, heatNow);
-      gapMilliseconds = drawSkewed(medianMilliseconds, timing.gapSpread, rng);
-      if (sameSpeakerNext) {
-        gapMilliseconds += timing.sameSpeakerExtraPauseMilliseconds;
+      const double extraMilliseconds =
+          sameSpeakerNext ? timing.sameSpeakerExtraPauseMilliseconds : 0.0;
+      gapMilliseconds = 0.0;
+      for (int attempt = 0; attempt < kBoundedDrawAttempts; ++attempt) {
+        gapMilliseconds = drawSkewed(medianMilliseconds, timing.gapSpread, rng) + extraMilliseconds;
+        if (gapMilliseconds >= timing.minOrdinaryGapMilliseconds &&
+            gapMilliseconds <= timing.maxOrdinaryGapMilliseconds) {
+          break;
+        }
       }
-      intervalMilliseconds = utteranceMilliseconds + gapMilliseconds;
+      gapMilliseconds = std::clamp(gapMilliseconds, timing.minOrdinaryGapMilliseconds,
+                                   timing.maxOrdinaryGapMilliseconds);
+      intervalMilliseconds = lastChirpOffsetMilliseconds + gapMilliseconds;
     }
 
     // The floor only stops a jump-in from collapsing onto the same instant.

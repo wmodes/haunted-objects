@@ -94,6 +94,9 @@ struct Statistics {
   std::vector<double> laterLogGap;              // ... and of the ordinary pause right after it
   std::size_t lapsesBeforePeak = 0;
   std::size_t lapsesAfterPeak = 0;
+  // The cool two-speaker opening (heat < 0.33), ordinary turns only: the silence the ear hears
+  // between one turn's last chirp and the next turn's first.
+  std::vector<double> coolPauseSeconds;
 };
 
 void accumulate(Statistics& stats, const Conversation& conversation) {
@@ -113,6 +116,11 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
     if (i + 1 < conversation.turns.size()) {  // the final turn has no successor
       stats.spacingSeconds.push_back(turn.intervalToNextSeconds);
       stats.bandSpacingSeconds[band].push_back(turn.intervalToNextSeconds);
+
+      const ConversationTurn& next = conversation.turns[i + 1];
+      if (band == 0 && !next.overlapsPrevious && !next.afterLapse) {
+        stats.coolPauseSeconds.push_back(next.gapBeforeSeconds);
+      }
     }
 
     // An ordinary pause is neither a jump-in nor a lapse; those are measured separately.
@@ -177,6 +185,16 @@ void printStatistics(const Statistics& stats) {
               mean(stats.speakerChangeGapSeconds) * 1000.0);
   std::printf("  lapses per conversation: before the heat peak %.2f, after it %.2f\n",
               stats.lapsesBeforePeak / conversations, stats.lapsesAfterPeak / conversations);
+
+  // The cool opening, as the ear hears it: silence between one chirp and the next.
+  const std::vector<double>& cool = stats.coolPauseSeconds;
+  std::printf("  cool opening (heat < 0.33, no jump-ins or lapses), silence between chirps:\n");
+  std::printf("    min / 5th / 50th / 95th / max: %.0f / %.0f / %.0f / %.0f / %.0f ms\n",
+              percentile(cool, 0.0) * 1000.0, percentile(cool, 0.05) * 1000.0,
+              percentile(cool, 0.50) * 1000.0, percentile(cool, 0.95) * 1000.0,
+              percentile(cool, 1.0) * 1000.0);
+  std::printf("    mean %.0f ms, so about %.1f turns per second\n", mean(cool) * 1000.0,
+              mean(cool) > 0.0 ? 1.0 / mean(cool) : 0.0);
 }
 
 /** Prints the heat curve every `stepSeconds`, as a row of marks per tenth of heat. */

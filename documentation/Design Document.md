@@ -332,8 +332,8 @@ borrows only timing; each slot keeps its own voice. The pieces:
 - **Turn.** One slot's contribution: a chirp, or sometimes two.
 - **Heat.** A value from 0 (cold) to 1 (hot) that follows a bell curve over the conversation: it
   starts cool, rises to a peak, and cools again. More heat means more talking over, slightly
-  shorter utterances, more two-chirp turns, and (in later steps) a greater chance that idle slots
-  join in. Heat does not slow the opening: conversations open briskly, and what is missing when
+  shorter thinking pauses, more two-chirp turns, and (in later steps) a greater chance that idle
+  slots join in. Heat does not slow the opening: conversations open briskly, and what is missing when
   cool is crowding and overlap, not speed. The curve is drawn fresh each conversation from recipe
   ranges: peak height, peak time (as a fraction of the length), width, a baseline floor, and a
   small smoothed wobble.
@@ -382,7 +382,8 @@ read):
 - The median spoken utterance in a study of 100 telephone conversations was about 0.9 s, with a
   quarter under 0.5 s and a quarter over 1.5 s
   ([likely this ICPhS 2007 paper](https://www.icphs2007.de/conference/Papers/1775/1775.pdf); the
-  search did not confirm which paper).
+  search did not confirm which paper). Not modeled: a chirp carries the whole turn, so only the
+  silence between chirps is timed (see the timing model below).
 - The median between-speaker gap was about +80 ms in one study
   ([Science Advances figure](https://pmc.ncbi.nlm.nih.gov/articles/PMC10065445/figure/F2)), near
   100 ms in Dutch, English, and Swedish corpora, and 0-300 ms across ten languages.
@@ -395,70 +396,67 @@ read):
 - Not found: the overlap percentage, the distribution's exact shape, an awkward-silence
   threshold, and how often conversations lapse.
 
-**The timing model.** Each chirp marks an unheard utterance, so the time from one turn's start to
-the next's is the implied speaking time plus a gap. The human gap figures are measured from the
-end of someone's speech, which typically lasts about a second; with 10 ms chirps and only the
-gap, the first sim sounded like ping-pong, and its cold gap (700 ms against a real median near
-150 ms) made the opening too slow. The model now draws:
+**The timing model.** A chirp *is* a turn's speech, so the only timing is the silence between one
+chirp and the next. (An earlier version added an "implied utterance" of about 0.9 s on top of the
+gap, following the idea that human gap figures are measured from the end of speech. Because a
+chirp carries the whole turn, that was dropped: its heavy tail was the source of the very long and
+very short spacings in the cool opening, with 13% of spacings over 2.5 s.) The model draws:
 
-- an **implied utterance**, log-normal (skewed), median about 0.9 s, a little shorter when hot;
-- a **pause**, log-normal (mostly short, with a long tail of real pauses), whose median slides
-  with the difficulty of the turn being answered, from about 87 ms (trivial) to about 825 ms
-  (hard), and is a little shorter when hot;
+- a **silence** between chirps, log-normal (mostly near its median, with a tail), whose median
+  slides with the difficulty of the turn being answered, from about 300 ms (trivial) to about
+  1.8 s (hard), and is shorter when hot (down to 60% at full heat);
+- **hard bounds** on ordinary silences: never under 200 ms and never over 2.4 s, enforced by
+  redrawing so values do not pile up at the limits. Jump-ins and lapses are exempt;
 - **+140 ms** when the same slot keeps the floor;
+- the **silence inside a two-chirp turn** ("Well... part time"): about 180 ms (easy) to 580 ms
+  (hard);
 - **overlap as its own event**, because a 10 ms chirp can only be heard talking over another if
-  the two land almost on top of each other: with a chance that rises with heat (4% cold, 35%
-  hot) the next speaker starts 10-150 ms after the current turn began;
-- **lapses** only after the heat peak: a chance up to 25% per turn that grows as heat falls and
-  the end nears.
+  the two land almost on top of each other: no jump-ins in the cool opening (below heat 0.3), then
+  a chance that ramps up to 35% at heat 0.8 and above; the next speaker starts 10-150 ms after
+  the current turn began;
+- **lapses** only after the heat peak: up to a 12% chance per turn that grows as heat falls and
+  the end nears, each lasting 1.5-5 s.
 
-These numbers are starting points to tune by ear. The sourced anchors are the utterance median,
-the short-pause-with-a-long-tail shape, and the 140 ms; the difficulty mapping, the overlap
-chances, and the lapse chances are design choices. (I recall that real response delays are longer
-for harder or less-preferred answers, which motivates difficulty, but I have not verified it.)
+The pace aim for the cool opening is about 1.5 turns a second: human speech is about one turn a
+second, and much faster than that sounds like ping-pong. These numbers are starting points to tune
+by ear. The sourced anchors are the short-pause-with-a-long-tail shape and the 140 ms; the
+difficulty mapping, the bounds, the overlap chances, and the lapse chances are design choices. (I
+recall that real response delays are longer for harder or less-preferred answers, which motivates
+difficulty, but I have not verified it.)
 
 **Build plan.** One change at a time, each as a host-only experiment you can listen to before
 anything reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven
 roping in, (3) side conversations, (4) winding down.
 
 **Status.** Step 1 is built as the `conversation` experiment: two slots, the heat bell curve,
-the timing model above, and per-slot talkativeness and wordiness drawn from a seed. It renders a
-WAV with each slot's voice, prints a report, and prints statistics over 300 generated
-conversations. The WAV was checked against the generated score. The first version (heat scaled the
-gap; coin-flip doubles) was too slow at the start and too chatty with doubles, so it was revised
-after listening. Measured over 300 conversations of two slots:
+difficulty, the timing model above, and per-slot talkativeness and wordiness drawn from a seed. It
+renders a WAV with each slot's voice, prints a report, and prints statistics over 300 generated
+conversations. The WAV was checked against the generated score. It was tuned by listening, in
+rounds:
+
+1. The first version scaled the gap with heat and flipped a coin for two-chirp turns: too slow at
+   the start and too chatty with doubles.
+2. The next used independent skewed pauses: still uniform, with no rhythm. Difficulty was added,
+   so the pause follows how hard the last turn was to answer, in streaks.
+3. Trimming the pause ends by 25% left outliers in the cool opening. Measuring showed they came
+   from the implied-utterance term, not the pause.
+4. The implied utterance was removed and the silence between chirps modeled directly, with hard
+   bounds, and no jump-ins until heat builds.
+
+Measured over 300 conversations of two slots (the cool opening is where heat is below 0.33, with
+no jump-ins or lapses):
 
 | Measure | Aim | Result |
 |---|---|---|
-| Two-chirp turns | about 1 in 10 | 8.2% |
-| Median turn-start to turn-start | about 1 s | 1063 ms |
-| Opening pace (median, cold vs hot) | brisk when cold | 1159 ms vs 962 ms |
-| Pause after the implied utterance, same speaker vs speaker change | about 140 ms longer | 346 ms vs 208 ms |
-| Talking over, cold / warm / hot | rises with heat | 4.5% / 8.7% / 13.8% |
-| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.60 |
-
-After a second listening the pauses still felt uniform: each pause was an independent draw from
-one distribution, so there was no rhythm. The model was extended with difficulty (above), so the
-pause before a reply follows how hard the last turn was to answer, in streaks. Measured over 300
-conversations of two slots:
-
-| Measure | Aim | Result |
-|---|---|---|
-| Two-chirp turns | about 1 in 10 | 8.5% |
-| Median turn-start to turn-start | about 1 s | 1102 ms |
-| Ordinary pauses, 10th / median / 90th percentile | varied, but no wild outliers | 88 / 247 / 574 ms (7x) |
-| Pause sizes: under 100 ms / 100-400 / 400-1000 / over 1 s | very short to long | 12% / 65% / 21% / 1% |
-| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.37 |
-| Same-speaker vs speaker-change pause (mean) | same speaker longer | 357 ms vs 221 ms |
-| Talking over, cold / warm / hot | rises with heat | 4.4% / 9.5% / 13.1% |
-| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.69 |
-
-After a third listening, some pauses were a little long and some a little rapid, so both ends were
-trimmed by 25% on a log scale: each end of the pause range was pulled 25% of the way toward the
-middle (87-825 ms instead of 60-1200 ms for the pause before a reply, 182-577 ms instead of
-150-700 ms for the pause inside a two-chirp turn) and the random spread was cut by 25% (0.5 to
-0.375, and 0.3 to 0.225). Before the trim the spread was 66 / 230 / 728 ms (11x) with 5% of pauses
-over a second. Lapses are separate and were not trimmed.
+| Two-chirp turns | about 1 in 10 | 8.7% |
+| Cool opening: silence between chirps, min / 5th / median / 95th / max | no outliers, inside the 200 ms to 2.4 s bounds | 200 / 266 / 556 / 1595 / 2399 ms |
+| Cool opening pace | about 1.5 turns a second | 1.4 turns a second |
+| Ordinary pauses overall, 10th / median / 90th percentile | varied, no wild outliers | 286 / 518 / 1198 ms |
+| Pause sizes: under 100 ms / 100-400 / 400-1000 / over 1 s | none too quick | 0% / 30% / 54% / 16% |
+| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.49 |
+| Same-speaker vs speaker-change pause (mean) | same speaker longer | 696 ms vs 571 ms |
+| Jump-ins, cold / warm / hot | none when cool, rising with heat | 0.0% / 6.5% / 15.7% |
+| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.97 |
 
 Known quirk: difficulty is a random walk with no pull toward easy, so it sometimes sits at the
 extremes for several turns (stuck at 1.00). If runs of long stalls feel unnatural, add a pull
@@ -512,7 +510,6 @@ used; terms marked "proposed" are awaiting approval.
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
 | Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |
 | difficulty | How much thought a turn takes to answer, from 0 (trivial) to 1 (hard). Sets the pause before the reply and the pause inside a two-chirp turn; drifts turn to turn with occasional topic shifts. |
-| implied utterance | (proposed) The unheard speech a chirp stands in for. Its length plus a gap sets the spacing between turns. |
 | lapse | (proposed) A long silence in a conversation. Only likely during the wind-down, as heat falls. |
 | cast | The slots taking part in one conversation. |
 | turn | One slot's contribution to a conversation: one chirp, or two. |

@@ -7,10 +7,11 @@
  * length and pitch) is applied later, from the detector profile table, by whatever plays the
  * score.
  *
- * Step 1 of the conversation suite: a fixed cast of two slots. Each chirp marks an unheard
- * utterance; the spacing between turns is that implied speech plus a skewed gap. Heat drives
- * overlap (and shortens utterances a little), same-speaker continuations pause longer, and
- * lapses (long silences) come only in the wind-down.
+ * Step 1 of the conversation suite: a fixed cast of two slots. A chirp is a turn's whole speech,
+ * so the only timing is the silence between chirps: skewed, bounded, and sized by how hard the
+ * previous turn was to answer. Heat drives jump-ins (none in the cool opening) and shortens
+ * thinking pauses a little, same-speaker continuations pause longer, and lapses (long silences)
+ * come only in the wind-down.
  */
 #pragma once
 
@@ -42,8 +43,8 @@ struct ConversationTurn {
   double intervalToNextSeconds;
 
   /**
-   * Silence between the previous turn's implied end and this turn's start, in seconds. Negative
-   * means this turn started before the previous one "finished": talking over. 0 for the first.
+   * Silence between the previous turn's last chirp and this turn's first, in seconds. For a
+   * jump-in it is the short delay after the previous turn's start. 0 for the first turn.
    */
   double gapBeforeSeconds;
   /** True if the same slot also took the previous turn (holding the floor). */

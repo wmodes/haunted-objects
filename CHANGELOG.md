@@ -23,6 +23,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Changed: conversation timing is now gap-only. A chirp is a turn's whole speech, so the
+  "implied utterance" was removed (its heavy tail caused the very long and very short spacings in
+  the cool opening) and the silence between chirps is modeled directly: log-normal, median 300 ms
+  (trivial) to 1.8 s (hard) by difficulty, hard bounds of 200 ms to 2.4 s enforced by redrawing,
+  no jump-ins until heat builds, and the lapse chance halved (0.25 to 0.12) to offset the doubled
+  turn count. Cool opening is about 1.4 turns a second. `implied utterance` is retired from the
+  lexicon.
 - Changed: conversation pauses trimmed 25% at both ends (log scale) after listening: pause before
   a reply 87-825 ms (was 60-1200), inner pause of a two-chirp turn 182-577 ms (was 150-700), and
   the random spreads cut by 25%. Pooled 10th/median/90th percentile is now 88/247/574 ms.
