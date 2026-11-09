@@ -23,6 +23,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Design decision: the conversation suite is a generated, café-style exchange driven by heat (a
+  bell curve over the conversation) and per-slot talkativeness and wordiness; human turn-taking
+  research recorded. `cast`, `turn`, `heat`, `talkativeness`, `wordiness`, and `temperament`
+  added to the lexicon.
 - Design decision: a slot's voice (chirp length and frequency) is the same in every suite; only
   timing varies by suite. `voice` and `timing` added to the lexicon. The `chirpIntervalSeconds`
   field comment now says it is the ambient low-battery interval (timing, not voice).

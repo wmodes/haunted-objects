@@ -243,6 +243,54 @@ experiment, which plays through computer speakers, defaults to sine, and also of
 sawtooth so they can be compared by ear against how the real alarms sounded. Open: which waveform
 the real horns should get; judge by ear once the horns are wired.
 
+### Conversation suite (smoke alarm piece)
+
+The model is a vivid conversation between two people in a café, interesting enough to rope in the
+people at nearby tables. Each conversation is generated, not scripted, so every one differs. It
+borrows only timing; each slot keeps its own voice. The pieces:
+
+- **Cast.** Each conversation draws a subset of the slots. Not everyone talks; sometimes
+  everyone does. It starts with two.
+- **Turn.** One slot's contribution: a chirp, or sometimes two.
+- **Heat.** A value from 0 (cold) to 1 (hot) that follows a bell curve over the conversation: it
+  starts cool, rises to a peak, and cools again. More heat means smaller gaps between turns (a
+  gap below zero is talking over) and a greater chance that idle slots join in. The curve is drawn
+  fresh each conversation from recipe ranges: peak height, peak time (as a fraction of the
+  length), width, a baseline floor, and a small smoothed wobble.
+- **Talkativeness.** A per-slot trait, drawn fresh each conversation (unlike the fixed voice).
+  It decides whether a slot pitches in, and how often it is picked to speak next. The current
+  speaker is in the draw, so a chatty slot can speak several turns in a row and a quiet one may
+  barely speak.
+- **Wordiness.** A per-slot trait that decides whether a turn is one chirp or two (never more).
+- **Temperament** is talkativeness and wordiness together. Interruptiveness was dropped: talking
+  over emerges from negative gaps at high heat.
+- **Arc.** Nothing is scripted. As heat rises, idle slots are roped in and side conversations
+  can form among the bystanders; as heat falls, slots drop out until it settles back to two and
+  ends. Then the next suite (usually battery-ambient) takes over.
+- **Duration.** Much longer than first assumed, because the familiar human feel comes from the
+  pauses between turns. The proposed recipe range is 60-240 s, to be tuned.
+
+Human turn-taking timing, which sets the gaps (from search summaries; the primary papers were not
+read):
+
+- The most common gap between speakers is about 200 ms, and most transitions fall between 100 and
+  300 ms ([Frontiers in Psychology, 2015](https://www.frontiersin.org/articles/10.3389/fpsyg.2015.00250/full);
+  [pauses, gaps and overlaps](https://typeset.io/papers/pauses-gaps-and-overlaps-in-conversations-45doa86dcd)).
+- Question-answer delays range from about 7 ms in Japanese to about 400 ms in Danish
+  ([Stivers et al., 2009](https://emcawiki.net/Stivers-etal2009)).
+- Gaps and overlaps behave as one distribution, with overlap as a negative gap. There is no agreed
+  cutoff for a long gap; one paper used 2 s, about three standard deviations above a mean near
+  248 ms.
+- Not found: the overlap percentage, the distribution's shape, and an awkward-silence threshold.
+
+Chirps are about 10 ms long, far shorter than a spoken turn, so the time from one turn's start to
+the next's is modeled as a turn length plus a gap, and heat shortens both. This is an assumption
+to tune by ear, not a sourced figure.
+
+Built one change at a time, each as a host-only experiment you can listen to before anything
+reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven roping in,
+(3) side conversations, (4) winding down.
+
 ### Tooling
 
 - PlatformIO via the CLI, not the VS Code extension, with each piece as its own PlatformIO
@@ -272,6 +320,12 @@ Code, docs, and conversation use these words. A new term is proposed and approve
 | ensemble | An interlude in which the alarms build a rhythmic score together, simple at first, then more complex. |
 | InterludeScheduler | The class that decides when an interlude happens and which kind. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
+| cast | The slots taking part in one conversation. |
+| turn | One slot's contribution to a conversation: one chirp, or two. |
+| heat | How lively a conversation is, from 0 to 1, following a bell curve over its length. More heat means smaller gaps and more slots joining in. |
+| talkativeness | A per-slot trait, drawn fresh each conversation, that decides how likely the slot is to pitch in and to speak next. |
+| wordiness | A per-slot trait, drawn fresh each conversation, that decides how likely a turn is two chirps instead of one. |
+| temperament | A slot's talkativeness and wordiness for one conversation. Varies; unlike the fixed voice. |
 | voice | A slot's chirp length and chirp frequency. The same in every suite. |
 | timing | When a slot's chirps happen and in what pattern. Varies by suite; the profile's chirp interval is the battery-ambient suite's timing. |
 | slot | The numbered position of a detector, counted from 1. A slot always behaves the same across power-ups. |
