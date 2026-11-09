@@ -23,6 +23,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Changed: conversation experiment revised after listening and a check against turn-taking
+  literature. Spacing is now an implied utterance (median 0.9 s) plus a skewed gap (median 150
+  ms); same-speaker pauses run 140 ms longer; heat drives talking over and no longer slows the
+  opening; two-chirp turns are rare (about 1 in 10) and heat-weighted; lapses come only in the
+  wind-down. The experiment now also prints statistics over 300 seeds. `implied utterance` and
+  `lapse` proposed for the lexicon.
 - Design Document reorganized into repository-wide decisions and a smoke-alarm-piece section,
   with the suites as subheads: how they fit together (equal suites, succession rules, durations,
   recipe/generator/player split, typed recipes first and JSON5 later), battery-ambient (with the

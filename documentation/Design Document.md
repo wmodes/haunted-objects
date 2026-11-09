@@ -331,17 +331,25 @@ borrows only timing; each slot keeps its own voice. The pieces:
   everyone does. It starts with two.
 - **Turn.** One slot's contribution: a chirp, or sometimes two.
 - **Heat.** A value from 0 (cold) to 1 (hot) that follows a bell curve over the conversation: it
-  starts cool, rises to a peak, and cools again. More heat means smaller gaps between turns (a
-  gap below zero is talking over) and a greater chance that idle slots join in. The curve is drawn
-  fresh each conversation from recipe ranges: peak height, peak time (as a fraction of the
-  length), width, a baseline floor, and a small smoothed wobble.
+  starts cool, rises to a peak, and cools again. More heat means more talking over, slightly
+  shorter utterances, more two-chirp turns, and (in later steps) a greater chance that idle slots
+  join in. Heat does not slow the opening: conversations open briskly, and what is missing when
+  cool is crowding and overlap, not speed. The curve is drawn fresh each conversation from recipe
+  ranges: peak height, peak time (as a fraction of the length), width, a baseline floor, and a
+  small smoothed wobble.
 - **Talkativeness.** A per-slot trait, drawn fresh each conversation (unlike the fixed voice).
   It decides whether a slot pitches in, and how often it is picked to speak next. The current
   speaker is in the draw, so a chatty slot can speak several turns in a row and a quiet one may
   barely speak.
-- **Wordiness.** A per-slot trait that decides whether a turn is one chirp or two (never more).
-- **Temperament** is talkativeness and wordiness together. Interruptiveness was dropped: talking
-  over emerges from negative gaps at high heat.
+- **Wordiness.** A per-slot trait that scales the chance a turn is two chirps instead of one
+  (never more). Two-chirp turns are rare, someone adding on to what they just said: about 1 in
+  10 overall, and likelier when hot.
+- **Temperament** is talkativeness and wordiness together. Interruptiveness was dropped: heat
+  drives talking over instead.
+- **Holding the floor.** When the same slot keeps the floor instead of passing it, it pauses
+  longer, as if still thinking.
+- **Lapses.** Long silences (1.5-5 s) become likely only after the heat peak, as heat falls, so
+  the opening stays brisk and the ending trails off.
 - **Arc.** Nothing is scripted. As heat rises, idle slots are roped in and side conversations
   can form among the bystanders; as heat falls, slots drop out until it settles back to two and
   ends. Then the next suite (usually battery-ambient) takes over. An earlier idea, a fixed arc of
@@ -361,23 +369,61 @@ read):
 - Gaps and overlaps behave as one distribution, with overlap as a negative gap. There is no agreed
   cutoff for a long gap; one paper used 2 s, about three standard deviations above a mean near
   248 ms.
-- Not found: the overlap percentage, the distribution's shape, and an awkward-silence threshold.
+- The median spoken utterance in a study of 100 telephone conversations was about 0.9 s, with a
+  quarter under 0.5 s and a quarter over 1.5 s
+  ([likely this ICPhS 2007 paper](https://www.icphs2007.de/conference/Papers/1775/1775.pdf); the
+  search did not confirm which paper).
+- The median between-speaker gap was about +80 ms in one study
+  ([Science Advances figure](https://pmc.ncbi.nlm.nih.gov/articles/PMC10065445/figure/F2)), near
+  100 ms in Dutch, English, and Swedish corpora, and 0-300 ms across ten languages.
+- Silences within one speaker's turn (pauses) run longer than gaps at a speaker change. One cited
+  study puts same-speaker continuations about 140 ms, roughly 25%, longer
+  ([Heldner & Edlund, 2010](https://staff.fnwi.uva.nl/r.fernandezrovira/teaching/cosp/cosp2016/docs/HeldnerEdlund2010.pdf);
+  [Frontiers, 2015](https://www.frontiersin.org/articles/10.3389/fpsyg.2015.00731/full)). A 500 ms
+  cutoff catches only about half of gaps (and about 58% of pauses), so the distributions overlap
+  and have long tails.
+- Not found: the overlap percentage, the distribution's exact shape, an awkward-silence
+  threshold, and how often conversations lapse.
 
-Chirps are about 10 ms long, far shorter than a spoken turn, so the time from one turn's start to
-the next's is modeled as a turn length plus a gap, and heat shortens both. A chirp can only be
-heard "talking over" another if the two land almost on top of each other, which is why heat also
-shortens the turn length. This is an assumption to tune by ear, not a sourced figure.
+**The timing model.** Each chirp marks an unheard utterance, so the time from one turn's start to
+the next's is the implied speaking time plus a gap. The human gap figures are measured from the
+end of someone's speech, which typically lasts about a second; with 10 ms chirps and only the
+gap, the first sim sounded like ping-pong, and its cold gap (700 ms against a real median near
+150 ms) made the opening too slow. The model now draws:
+
+- an **implied utterance**, log-normal (skewed), median about 0.9 s, a little shorter when hot;
+- a **gap**, log-normal, median about 150 ms: mostly short, with a long tail of real pauses;
+- **+140 ms** when the same slot keeps the floor;
+- **overlap as its own event**, because a 10 ms chirp can only be heard talking over another if
+  the two land almost on top of each other: with a chance that rises with heat (4% cold, 35%
+  hot) the next speaker starts 10-150 ms after the current turn began;
+- **lapses** only after the heat peak: a chance up to 25% per turn that grows as heat falls and
+  the end nears.
+
+These numbers are starting points to tune by ear. The sourced anchors are the utterance median,
+the gap median, and the 140 ms; the overlap and lapse chances are design choices.
 
 **Build plan.** One change at a time, each as a host-only experiment you can listen to before
 anything reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven
 roping in, (3) side conversations, (4) winding down.
 
 **Status.** Step 1 is built as the `conversation` experiment: two slots, the heat bell curve,
-heat-driven turn lengths and gaps, and per-slot talkativeness and wordiness drawn from a seed. It
-renders a WAV with each slot's voice and prints a report. The WAV was checked against the
-generated score. Open for tuning by ear: pace scales linearly with heat, so only the very top of
-the curve gets truly rapid; the cold end may be too slow; and talking over is rare at 10 ms
-chirps. Steps 2 to 4 are not started.
+the timing model above, and per-slot talkativeness and wordiness drawn from a seed. It renders a
+WAV with each slot's voice, prints a report, and prints statistics over 300 generated
+conversations. The WAV was checked against the generated score. The first version (heat scaled the
+gap; coin-flip doubles) was too slow at the start and too chatty with doubles, so it was revised
+after listening. Measured over 300 conversations of two slots:
+
+| Measure | Aim | Result |
+|---|---|---|
+| Two-chirp turns | about 1 in 10 | 8.2% |
+| Median turn-start to turn-start | about 1 s | 1063 ms |
+| Opening pace (median, cold vs hot) | brisk when cold | 1159 ms vs 962 ms |
+| Pause after the implied utterance, same speaker vs speaker change | about 140 ms longer | 346 ms vs 208 ms |
+| Talking over, cold / warm / hot | rises with heat | 4.5% / 8.7% / 13.8% |
+| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.60 |
+
+Whether it now feels like a real conversation is judged by ear. Steps 2 to 4 are not started.
 
 #### Ensemble suite
 
@@ -425,6 +471,8 @@ used; terms marked "proposed" are awaiting approval.
 | InterludeScheduler | The earlier name for the scheduler; see SuiteScheduler. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
 | Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |
+| implied utterance | (proposed) The unheard speech a chirp stands in for. Its length plus a gap sets the spacing between turns. |
+| lapse | (proposed) A long silence in a conversation. Only likely during the wind-down, as heat falls. |
 | cast | The slots taking part in one conversation. |
 | turn | One slot's contribution to a conversation: one chirp, or two. |
 | heat | How lively a conversation is, from 0 to 1, following a bell curve over its length. More heat means smaller gaps and more slots joining in. |

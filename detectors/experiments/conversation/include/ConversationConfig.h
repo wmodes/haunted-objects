@@ -4,8 +4,10 @@
  *
  * Anything generally useful to the piece lives in the piece's own config; anything only this
  * experiment needs lives here, so deleting the experiment leaves no stray settings behind. Most
- * values below are starting points to tune by ear, not sourced figures; the one sourced anchor is
- * that human turn gaps are most often about 200 ms (see the Design Document).
+ * values below are starting points to tune by ear. The timing anchors come from the turn-taking
+ * literature, read through search summaries (see the Design Document): median spoken utterance
+ * about 0.9 s, median gap between speakers roughly 100-200 ms with a long tail, and same-speaker
+ * pauses about 140 ms longer than speaker-change gaps.
  */
 #pragma once
 
@@ -28,7 +30,9 @@ enum class Waveform {
 
 /**
  * Heat follows a bell curve over the conversation. Each conversation draws its own curve from
- * the ranges below, so no two conversations have the same arc.
+ * the ranges below, so no two conversations have the same arc. Heat drives overlap and (in later
+ * steps) recruitment, and shortens utterances a little; it does not slow the opening, because
+ * conversations open briskly.
  */
 struct HeatConfig {
   /** How hot the conversation gets at its peak, 0 to 1. Higher is a more heated exchange. */
@@ -60,43 +64,69 @@ struct HeatConfig {
 };
 
 /**
- * Timing between turns. The time from one turn's start to the next turn's start is a turn length
- * plus a gap. Heat slides both from their "cold" settings to their "hot" settings. A gap or
- * interval that comes out below zero means the next turn starts before the last one "finishes":
- * talking over.
+ * Timing between turns. Each chirp marks an unheard utterance, so the time from one turn's start
+ * to the next turn's start is the implied speaking time plus a gap. Utterances and gaps are
+ * skewed (log-normal): mostly short, with a long tail of occasional real pauses.
  */
 struct TimingConfig {
-  /** Most likely gap between turns when the conversation is cold, in milliseconds. */
-  double coldGapModeMilliseconds = 700.0;
-
-  /** Most likely gap between turns when the conversation is hot, in milliseconds. */
-  double hotGapModeMilliseconds = 30.0;
+  /** Median length of the speech a chirp stands in for, in milliseconds. Higher is slower. */
+  double utteranceMedianMilliseconds = 900.0;
 
   /**
-   * Spread of the gap around its most likely value, in milliseconds (the standard deviation).
-   * Raising it makes the rhythm looser and more human, and makes talking over more frequent when
-   * hot.
+   * Spread of utterance lengths (the log-normal sigma). 0 makes every utterance the median;
+   * around 0.8 puts a quarter under about 0.5 s and a quarter over about 1.5 s.
    */
-  double gapSpreadMilliseconds = 120.0;
+  double utteranceSpread = 0.8;
 
-  /** Turn length range when cold, in milliseconds. A chirp stands in for a spoken turn. */
-  Range coldTurnLengthMilliseconds{500.0, 1500.0};
+  /**
+   * Factor applied to the utterance median at full heat; 1 means heat does not shorten
+   * utterances, and below 1 makes a hot exchange more clipped. Interpolated by heat.
+   */
+  double hotUtteranceScale = 0.8;
 
-  /** Turn length range when hot, in milliseconds. Hot exchanges are clipped and rapid. */
-  Range hotTurnLengthMilliseconds{80.0, 300.0};
+  /** Median silence between one speaker finishing and another starting, in milliseconds. */
+  double gapMedianMilliseconds = 150.0;
 
-  /** Chance that a turn is followed by a long pause instead of a normal gap, 0 to 1. */
-  double longPauseProbability = 0.03;
+  /**
+   * Spread of the gap (the log-normal sigma). Larger gives a longer tail of slow replies;
+   * around 0.8 puts the 95th percentile near four times the median.
+   */
+  double gapSpread = 0.8;
 
-  /** Length range of a long pause, in seconds. */
-  Range longPauseSeconds{1.5, 4.0};
+  /**
+   * Extra pause when the same slot keeps the floor instead of passing it, in milliseconds. A slot
+   * that continues sounds like it is still thinking. Raising it makes that hesitation clearer.
+   */
+  double sameSpeakerExtraPauseMilliseconds = 140.0;
+
+  /** Chance, when cold, that the next speaker jumps in on top of the current one, 0 to 1. */
+  double coldOverlapProbability = 0.04;
+
+  /** Chance, when hot, that the next speaker jumps in on top of the current one, 0 to 1. */
+  double hotOverlapProbability = 0.35;
+
+  /**
+   * When a speaker jumps in, how soon after the other's turn started it lands, in milliseconds.
+   * Chirps are about 10 ms long, so small values make near-simultaneous chirps.
+   */
+  Range overlapOnsetMilliseconds{10.0, 150.0};
+
+  /**
+   * Chance of a lapse (a long silence) after a turn, at its greatest: when heat is zero and the
+   * conversation is at its very end, 0 to 1. Lapses only become likely after the peak, as heat
+   * falls, so the opening stays brisk and the ending trails off.
+   */
+  double lapseMaxProbability = 0.25;
+
+  /** Length range of a lapse, in seconds. */
+  Range lapseSeconds{1.5, 5.0};
 
   /** Time between the two chirps of a two-chirp turn, in milliseconds. */
   double doubleChirpSpacingMilliseconds = 180.0;
 
   /**
    * The soonest a turn may start after the previous turn started, in milliseconds. Keeps
-   * talking over from collapsing into a single chirp. Raising it means fewer near-collisions.
+   * talking over from collapsing into a single chirp.
    */
   double minTurnSpacingMilliseconds = 5.0;
 
@@ -115,8 +145,20 @@ struct TemperamentConfig {
    */
   Range talkativeness{0.15, 1.0};
 
-  /** Chance that a slot's turn is two chirps instead of one, 0 to 1. */
-  Range wordiness{0.0, 0.5};
+  /**
+   * How likely a slot is to add a second chirp to its turn, relative to the most wordy (0 to 1).
+   * The actual chance also scales with heat; see the two settings below.
+   */
+  Range wordiness{0.2, 1.0};
+
+  /**
+   * Chance that a turn is two chirps, for the wordiest slot at full heat, 0 to 1. Two-chirp
+   * turns are rare: someone adding on to what they just said. Raising it makes them commoner.
+   */
+  double maxDoubleChirpProbability = 0.25;
+
+  /** Share of that chance that remains when the conversation is cold, 0 to 1. */
+  double coldDoubleChirpFraction = 0.15;
 };
 
 /** How the score is turned into sound. */
@@ -162,6 +204,12 @@ struct ConversationConfig {
    */
   unsigned randomSeed = 20261112;
 
+  /**
+   * How many conversations (seeds counting up from randomSeed) to generate for the summary of
+   * statistics. More seeds make the averages steadier.
+   */
+  unsigned statisticsConversationCount = 300;
+
   HeatConfig heat;
   TimingConfig timing;
   TemperamentConfig temperament;
@@ -189,6 +237,8 @@ static_assert(kDefaults.secondCastSlot >= 1 && kDefaults.secondCastSlot <= kDete
 static_assert(kDefaults.firstCastSlot != kDefaults.secondCastSlot,
               "the cast needs two different slots");
 static_assert(kDefaults.durationSeconds > 0.0, "durationSeconds must be positive");
+static_assert(kDefaults.statisticsConversationCount > 0,
+              "statisticsConversationCount must be positive");
 
 static_assert(isOrdered(kDefaults.heat.peakHeat) && isProbability(kDefaults.heat.peakHeat.min) &&
                   isProbability(kDefaults.heat.peakHeat.max),
@@ -204,17 +254,25 @@ static_assert(kDefaults.heat.wobbleAmount >= 0.0, "wobbleAmount must not be nega
 static_assert(kDefaults.heat.wobblePeriodSeconds > 0.0, "wobblePeriodSeconds must be positive");
 static_assert(kDefaults.heat.fastWobbleRatio > 1.0, "fastWobbleRatio must be above 1");
 
-static_assert(kDefaults.timing.gapSpreadMilliseconds >= 0.0,
-              "gapSpreadMilliseconds must not be negative");
-static_assert(isOrdered(kDefaults.timing.coldTurnLengthMilliseconds) &&
-                  kDefaults.timing.coldTurnLengthMilliseconds.min >= 0.0,
-              "coldTurnLengthMilliseconds must be an ordered, non-negative range");
-static_assert(isOrdered(kDefaults.timing.hotTurnLengthMilliseconds) &&
-                  kDefaults.timing.hotTurnLengthMilliseconds.min >= 0.0,
-              "hotTurnLengthMilliseconds must be an ordered, non-negative range");
-static_assert(isProbability(kDefaults.timing.longPauseProbability),
-              "longPauseProbability must be within 0..1");
-static_assert(isOrdered(kDefaults.timing.longPauseSeconds), "longPauseSeconds must be ordered");
+static_assert(kDefaults.timing.utteranceMedianMilliseconds > 0.0,
+              "utteranceMedianMilliseconds must be positive");
+static_assert(kDefaults.timing.utteranceSpread >= 0.0, "utteranceSpread must not be negative");
+static_assert(kDefaults.timing.hotUtteranceScale > 0.0, "hotUtteranceScale must be positive");
+static_assert(kDefaults.timing.gapMedianMilliseconds > 0.0,
+              "gapMedianMilliseconds must be positive");
+static_assert(kDefaults.timing.gapSpread >= 0.0, "gapSpread must not be negative");
+static_assert(kDefaults.timing.sameSpeakerExtraPauseMilliseconds >= 0.0,
+              "sameSpeakerExtraPauseMilliseconds must not be negative");
+static_assert(isProbability(kDefaults.timing.coldOverlapProbability) &&
+                  isProbability(kDefaults.timing.hotOverlapProbability),
+              "overlap probabilities must be within 0..1");
+static_assert(isOrdered(kDefaults.timing.overlapOnsetMilliseconds) &&
+                  kDefaults.timing.overlapOnsetMilliseconds.min >= 0.0,
+              "overlapOnsetMilliseconds must be an ordered, non-negative range");
+static_assert(isProbability(kDefaults.timing.lapseMaxProbability),
+              "lapseMaxProbability must be within 0..1");
+static_assert(isOrdered(kDefaults.timing.lapseSeconds) && kDefaults.timing.lapseSeconds.min >= 0.0,
+              "lapseSeconds must be an ordered, non-negative range");
 static_assert(kDefaults.timing.doubleChirpSpacingMilliseconds > 0.0,
               "doubleChirpSpacingMilliseconds must be positive");
 static_assert(kDefaults.timing.minTurnSpacingMilliseconds >= 0.0,
@@ -229,6 +287,10 @@ static_assert(isOrdered(kDefaults.temperament.wordiness) &&
                   isProbability(kDefaults.temperament.wordiness.min) &&
                   isProbability(kDefaults.temperament.wordiness.max),
               "wordiness must be an ordered range within 0..1");
+static_assert(isProbability(kDefaults.temperament.maxDoubleChirpProbability),
+              "maxDoubleChirpProbability must be within 0..1");
+static_assert(isProbability(kDefaults.temperament.coldDoubleChirpFraction),
+              "coldDoubleChirpFraction must be within 0..1");
 
 static_assert(kDefaults.audio.sampleRateHertz > 0, "sampleRateHertz must be positive");
 static_assert(kDefaults.audio.amplitude > 0.0 && kDefaults.audio.amplitude <= 1.0,
