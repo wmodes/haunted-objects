@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   to espressif32 8.0.0), with its own README.
 - Design decision: layered, typed config and secrets (shared defaults, per-piece overrides),
   with `Config` and `Secrets` added to the lexicon.
+- Blink experiment (`detectors/experiments/blink/`): `HeartbeatBlinker` toggles the on-board LED
+  and logs a heartbeat over serial, using the piece's layered `Config` and `Secrets`. Verified on
+  the ELEGOO ESP32 board.
+- Design decision: tests (formal, `test/`) are separate from experiments (throwaway,
+  `experiments/`, one-way dependency); `test` and `experiment` added to the lexicon.
 - Layered config and secrets code: `SharedConfig` and `SharedSecrets` in `shared/include/`,
   `Config` and `Secrets` in `detectors/include/`. Real secrets live in gitignored `secrets_*.h`
   files with committed `.h.example` templates.

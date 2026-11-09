@@ -23,8 +23,25 @@ haunted-objects/
   README.md, CHANGELOG.md, .gitignore
   documentation/     Design Document, DEV-README
   detectors/         smoke alarm piece
+    experiments/     throwaway probes, one PlatformIO project each
   <next object>/     future pieces
 ```
+
+### Tests and experiments
+
+Tests and experiments are different things and live in different places.
+
+- **Tests** are formal: unit tests (PlatformIO's `test/` folder) and mutation runs. Each class
+  gets its own test file and is tested through its public interface.
+- **Experiments** are throwaway probes, such as the blink test that proved the toolchain and
+  board. They live in `experiments/` inside the piece, never in the piece's `src/` or
+  `include/`. Each is its own PlatformIO project.
+- **One-way dependency.** An experiment may use the piece's code and the shared layer, but
+  nothing outside `experiments/` may depend on an experiment. Deleting the whole folder has no
+  lasting consequence.
+- **Where a setting lives.** A setting that is generally useful to the piece goes in the piece's
+  `Config`. A setting only one experiment needs lives in that experiment's own config header, so
+  deleting the experiment leaves no dross in main config.
 
 ### Configuration and secrets
 
@@ -103,4 +120,6 @@ Code, docs, and conversation use these words. A new term is proposed and approve
 | ensemble | An interlude in which the alarms build a rhythmic score together, simple at first, then more complex. |
 | InterludeScheduler | The class that decides when an interlude happens and which kind. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
+| test | A formal check of a class through its public interface, including mutation runs. Lives in `test/`. |
+| experiment | A throwaway probe of hardware or an idea. Lives in `experiments/`; nothing outside it depends on it. |
 | Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |

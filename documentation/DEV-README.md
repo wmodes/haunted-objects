@@ -21,7 +21,19 @@ mkdir detectors
 pio project init --project-dir detectors --board esp32dev --project-option "framework=arduino"
 ```
 
-Build, flash, and monitor commands will be added here once there is firmware to run.
+Build, flash, and monitor, from inside `detectors/` with the board plugged in over USB:
+
+```
+pio run                # build
+pio run -t upload      # build and flash (finds the USB port automatically)
+pio device monitor     # read serial output; Ctrl+C to quit
+```
+
+The main project has no firmware yet, so `pio run` in `detectors/` has nothing to build; until it
+does, run these commands from an experiment folder (see Experiments below).
+
+`monitor_speed` in `platformio.ini` must match `serialBaudRate` in `SharedConfig.h`; PlatformIO
+cannot read the config header, so the value is stated in both places.
 
 ## Secrets
 
@@ -38,6 +50,17 @@ cp detectors/include/secrets_detectors.h.example detectors/include/secrets_detec
 `secrets_<piece>.h` overwrites any of them for that piece only. The single ignore rule
 `secrets_*.h` covers all of them. (Credentials are also compiled into the firmware image, so
 protect the device and its binaries too.)
+
+## Experiments
+
+Throwaway probes live in `detectors/experiments/`, one PlatformIO project per folder, and never
+in `src/` or `include/`. An experiment may use the piece's `Config`/`Secrets` and the shared
+layer, but nothing may depend on an experiment, so the whole folder can be deleted safely.
+Settings only an experiment needs stay in that experiment's own config header.
+
+| Experiment | What it does | Run |
+|---|---|---|
+| `blink` | Blinks the on-board LED (GPIO2) and prints a heartbeat over serial; proves build, flash, config, and serial. | `pio run -d detectors/experiments/blink -t upload`, then `pio device monitor -d detectors/experiments/blink` |
 
 ## Testbenches
 

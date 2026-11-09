@@ -16,11 +16,4 @@ struct SharedConfig {
    * same value or its output is garbled.
    */
   unsigned long serialBaudRate = 115200;
-
-  /**
-   * Time between heartbeat ticks (the status LED toggle and the serial heartbeat line), in
-   * milliseconds. Raising it makes the heartbeat slower; lowering it makes it faster and the
-   * serial log busier.
-   */
-  unsigned long heartbeatIntervalMilliseconds = 1000;
 };
