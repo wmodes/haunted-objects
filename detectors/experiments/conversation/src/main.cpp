@@ -8,6 +8,7 @@
  * without relying on one lucky run. Play the file with `afplay` on macOS.
  */
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -58,6 +59,25 @@ double mean(const std::vector<double>& values) {
   return sum / values.size();
 }
 
+/** Pearson correlation of two equal-length series; 0 if there is nothing to correlate. */
+double correlation(const std::vector<double>& x, const std::vector<double>& y) {
+  if (x.size() < 2 || x.size() != y.size()) {
+    return 0.0;
+  }
+  const double meanX = mean(x);
+  const double meanY = mean(y);
+  double covariance = 0.0;
+  double varianceX = 0.0;
+  double varianceY = 0.0;
+  for (std::size_t i = 0; i < x.size(); ++i) {
+    covariance += (x[i] - meanX) * (y[i] - meanY);
+    varianceX += (x[i] - meanX) * (x[i] - meanX);
+    varianceY += (y[i] - meanY) * (y[i] - meanY);
+  }
+  const double denominator = std::sqrt(varianceX * varianceY);
+  return denominator > 0.0 ? covariance / denominator : 0.0;
+}
+
 /** What is measured about conversations, pooled over as many as are accumulated. */
 struct Statistics {
   std::size_t conversations = 0;
@@ -67,8 +87,11 @@ struct Statistics {
   std::size_t bandTurns[kHeatBands] = {0, 0, 0};
   std::size_t bandOverlaps[kHeatBands] = {0, 0, 0};
   std::vector<double> bandSpacingSeconds[kHeatBands];
-  std::vector<double> sameSpeakerGapSeconds;   // ordinary pauses when the floor is kept
+  std::vector<double> sameSpeakerGapSeconds;    // ordinary pauses when the floor is kept
   std::vector<double> speakerChangeGapSeconds;  // ordinary pauses when the floor passes
+  std::vector<double> ordinaryGapSeconds;       // every ordinary pause
+  std::vector<double> earlierLogGap;            // log of an ordinary pause ...
+  std::vector<double> laterLogGap;              // ... and of the ordinary pause right after it
   std::size_t lapsesBeforePeak = 0;
   std::size_t lapsesAfterPeak = 0;
 };
@@ -76,6 +99,8 @@ struct Statistics {
 void accumulate(Statistics& stats, const Conversation& conversation) {
   ++stats.conversations;
   const double peakTime = conversation.heat.peakTimeSeconds();
+  bool previousWasOrdinary = false;
+  double previousLogGap = 0.0;
   for (std::size_t i = 0; i < conversation.turns.size(); ++i) {
     const ConversationTurn& turn = conversation.turns[i];
     ++stats.turns;
@@ -90,10 +115,21 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
       stats.bandSpacingSeconds[band].push_back(turn.intervalToNextSeconds);
     }
 
-    if (i > 0 && !turn.overlapsPrevious && !turn.afterLapse) {
+    // An ordinary pause is neither a jump-in nor a lapse; those are measured separately.
+    const bool ordinary = i > 0 && !turn.overlapsPrevious && !turn.afterLapse;
+    if (ordinary) {
       (turn.followsSameSpeaker ? stats.sameSpeakerGapSeconds : stats.speakerChangeGapSeconds)
           .push_back(turn.gapBeforeSeconds);
+      stats.ordinaryGapSeconds.push_back(turn.gapBeforeSeconds);
+      const double logGap = std::log(turn.gapBeforeSeconds);
+      if (previousWasOrdinary) {
+        stats.earlierLogGap.push_back(previousLogGap);
+        stats.laterLogGap.push_back(logGap);
+      }
+      previousLogGap = logGap;
     }
+    previousWasOrdinary = ordinary;
+
     if (turn.afterLapse) {
       (turn.startSeconds < peakTime ? stats.lapsesBeforePeak : stats.lapsesAfterPeak) += 1;
     }
@@ -103,7 +139,8 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
 void printStatistics(const Statistics& stats) {
   const double conversations = static_cast<double>(stats.conversations);
   std::printf("  %zu turns over %zu conversations; two-chirp turns: %.1f%%\n", stats.turns,
-              stats.conversations, 100.0 * stats.doubleChirpTurns / std::max<std::size_t>(stats.turns, 1));
+              stats.conversations,
+              100.0 * stats.doubleChirpTurns / std::max<std::size_t>(stats.turns, 1));
   std::printf("  turn start to next turn start: median %.0f ms, quartiles %.0f / %.0f ms\n",
               percentile(stats.spacingSeconds, 0.5) * 1000.0,
               percentile(stats.spacingSeconds, 0.25) * 1000.0,
@@ -115,8 +152,27 @@ void printStatistics(const Statistics& stats) {
                 percentile(stats.bandSpacingSeconds[band], 0.5) * 1000.0,
                 100.0 * stats.bandOverlaps[band] / std::max<std::size_t>(stats.bandTurns[band], 1));
   }
-  std::printf("  ordinary pause (after the implied utterance): same speaker %.0f ms, "
-              "speaker change %.0f ms\n",
+
+  // The rhythm of the pauses: how varied they are, and whether they come in streaks.
+  const double p10 = percentile(stats.ordinaryGapSeconds, 0.10) * 1000.0;
+  const double p50 = percentile(stats.ordinaryGapSeconds, 0.50) * 1000.0;
+  const double p90 = percentile(stats.ordinaryGapSeconds, 0.90) * 1000.0;
+  std::printf("  ordinary pauses: 10th / median / 90th percentile %.0f / %.0f / %.0f ms "
+              "(90th is %.0fx the 10th)\n",
+              p10, p50, p90, p10 > 0.0 ? p90 / p10 : 0.0);
+  std::size_t bins[4] = {0, 0, 0, 0};
+  for (double gap : stats.ordinaryGapSeconds) {
+    const double ms = gap * 1000.0;
+    bins[ms < 100.0 ? 0 : (ms < 400.0 ? 1 : (ms < 1000.0 ? 2 : 3))] += 1;
+  }
+  const double total = static_cast<double>(std::max<std::size_t>(stats.ordinaryGapSeconds.size(), 1));
+  std::printf("  pause sizes: under 100 ms %.0f%%, 100-400 ms %.0f%%, 400-1000 ms %.0f%%, "
+              "over 1 s %.0f%%\n",
+              100.0 * bins[0] / total, 100.0 * bins[1] / total, 100.0 * bins[2] / total,
+              100.0 * bins[3] / total);
+  std::printf("  one pause predicts the next (correlation of log pauses; 0 = no rhythm): %.2f\n",
+              correlation(stats.earlierLogGap, stats.laterLogGap));
+  std::printf("  mean ordinary pause: same speaker %.0f ms, speaker change %.0f ms\n",
               mean(stats.sameSpeakerGapSeconds) * 1000.0,
               mean(stats.speakerChangeGapSeconds) * 1000.0);
   std::printf("  lapses per conversation: before the heat peak %.2f, after it %.2f\n",
@@ -188,13 +244,14 @@ int main() {
   }
   std::printf("%s\n", anyLapse ? "" : " none");
 
-  std::printf("\nfirst turns:\n");
-  const std::size_t shown = std::min<std::size_t>(conversation.turns.size(), 20);
+  std::printf("\nfirst turns (difficulty = how hard that turn is to answer; the pause before the\n"
+              "next turn follows it):\n");
+  const std::size_t shown = std::min<std::size_t>(conversation.turns.size(), 30);
   for (std::size_t i = 0; i < shown; ++i) {
     const ConversationTurn& turn = conversation.turns[i];
-    std::printf("  %7.3f s  slot %2u  %u chirp%s  heat %.2f  gap before %5.0f ms%s%s\n",
+    std::printf("  %7.3f s  slot %2u  %u chirp%s  difficulty %.2f  pause before %5.0f ms%s%s\n",
                 turn.startSeconds, turn.slot, turn.chirpCount, turn.chirpCount == 1 ? " " : "s",
-                turn.heat, turn.gapBeforeSeconds * 1000.0,
+                turn.difficulty, turn.gapBeforeSeconds * 1000.0,
                 turn.followsSameSpeaker ? "  (same speaker)" : "",
                 turn.overlapsPrevious ? "  (talking over)" : "");
   }

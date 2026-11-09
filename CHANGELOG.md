@@ -23,6 +23,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Changed: conversation experiment now models difficulty (how hard a turn is to answer, 0 to 1,
+  with memory and occasional topic shifts). The pause before a reply and the pause inside a
+  two-chirp turn follow it, so pauses vary widely and come in streaks (correlation of consecutive
+  pauses 0.39; 10th to 90th percentile 66 to 728 ms). `difficulty` added to the lexicon.
 - Changed: conversation experiment revised after listening and a check against turn-taking
   literature. Spacing is now an implied utterance (median 0.9 s) plus a skewed gap (median 150
   ms); same-speaker pauses run 140 ms longer; heat drives talking over and no longer slows the

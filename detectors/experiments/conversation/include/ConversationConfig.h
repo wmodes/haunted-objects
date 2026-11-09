@@ -6,8 +6,8 @@
  * experiment needs lives here, so deleting the experiment leaves no stray settings behind. Most
  * values below are starting points to tune by ear. The timing anchors come from the turn-taking
  * literature, read through search summaries (see the Design Document): median spoken utterance
- * about 0.9 s, median gap between speakers roughly 100-200 ms with a long tail, and same-speaker
- * pauses about 140 ms longer than speaker-change gaps.
+ * about 0.9 s, gaps between speakers mostly short with a long tail, and same-speaker pauses about
+ * 140 ms longer than speaker-change gaps. How a pause depends on difficulty is a design choice.
  */
 #pragma once
 
@@ -31,8 +31,8 @@ enum class Waveform {
 /**
  * Heat follows a bell curve over the conversation. Each conversation draws its own curve from
  * the ranges below, so no two conversations have the same arc. Heat drives overlap and (in later
- * steps) recruitment, and shortens utterances a little; it does not slow the opening, because
- * conversations open briskly.
+ * steps) recruitment, and shortens utterances and thinking pauses a little; it does not slow the
+ * opening, because conversations open briskly.
  */
 struct HeatConfig {
   /** How hot the conversation gets at its peak, 0 to 1. Higher is a more heated exchange. */
@@ -64,9 +64,35 @@ struct HeatConfig {
 };
 
 /**
+ * Difficulty is how much thought it takes to answer a turn, from 0 (trivial, like "Hi") to 1 (hard,
+ * like a probing question). It sets how long the next speaker pauses to think, so conversations
+ * lope: quick small talk, a stall at a hard question, then easing back. Difficulty has memory: it
+ * drifts from turn to turn, with occasional topic shifts to a new level.
+ */
+struct DifficultyConfig {
+  /** Difficulty of what the first turn answers, 0 to 1. Low means the opening is small talk. */
+  double openingDifficulty = 0.1;
+
+  /** Chance, per turn, of a topic shift: difficulty jumps to a fresh level, 0 to 1. */
+  double topicShiftProbability = 0.3;
+
+  /**
+   * How strongly a fresh level is biased toward easy. A new level is a uniform draw raised to
+   * this power: 1 is evenly spread, higher makes most topics easy and only a few hard. Above 0.
+   */
+  double topicShiftSkew = 1.8;
+
+  /**
+   * Size of the turn-to-turn drift when there is no topic shift (the standard deviation, in
+   * difficulty units). Larger makes difficulty wander faster; 0 holds it until the next shift.
+   */
+  double driftSpread = 0.12;
+};
+
+/**
  * Timing between turns. Each chirp marks an unheard utterance, so the time from one turn's start
- * to the next turn's start is the implied speaking time plus a gap. Utterances and gaps are
- * skewed (log-normal): mostly short, with a long tail of occasional real pauses.
+ * to the next turn's start is the implied speaking time plus a pause. Utterances and pauses are
+ * skewed (log-normal): mostly short, with a long tail. The pause median slides with difficulty.
  */
 struct TimingConfig {
   /** Median length of the speech a chirp stands in for, in milliseconds. Higher is slower. */
@@ -84,14 +110,24 @@ struct TimingConfig {
    */
   double hotUtteranceScale = 0.8;
 
-  /** Median silence between one speaker finishing and another starting, in milliseconds. */
-  double gapMedianMilliseconds = 150.0;
+  /** Median pause before replying to a trivial turn (difficulty 0), in milliseconds. */
+  double easyGapMedianMilliseconds = 60.0;
+
+  /** Median pause before replying to a hard turn (difficulty 1), in milliseconds. */
+  double hardGapMedianMilliseconds = 1200.0;
 
   /**
-   * Spread of the gap (the log-normal sigma). Larger gives a longer tail of slow replies;
-   * around 0.8 puts the 95th percentile near four times the median.
+   * Spread of the pause around its median (the log-normal sigma). Difficulty explains most of
+   * the variety, so this is smaller than a one-size-fits-all pause would need. Larger gives more
+   * surprise.
    */
-  double gapSpread = 0.8;
+  double gapSpread = 0.5;
+
+  /**
+   * Factor applied to thinking pauses at full heat; 1 means heat does not shorten them, and below
+   * 1 makes heated people answer faster. Interpolated by heat.
+   */
+  double hotThinkingScale = 0.6;
 
   /**
    * Extra pause when the same slot keeps the floor instead of passing it, in milliseconds. A slot
@@ -121,8 +157,20 @@ struct TimingConfig {
   /** Length range of a lapse, in seconds. */
   Range lapseSeconds{1.5, 5.0};
 
-  /** Time between the two chirps of a two-chirp turn, in milliseconds. */
-  double doubleChirpSpacingMilliseconds = 180.0;
+  /**
+   * Time between the two chirps of a two-chirp turn when answering a trivial turn, in
+   * milliseconds ("Well." "Yeah.").
+   */
+  double doubleChirpSpacingEasyMilliseconds = 150.0;
+
+  /**
+   * Time between the two chirps of a two-chirp turn when answering a hard turn, in milliseconds
+   * ("Well... part time."). Interpolated by difficulty.
+   */
+  double doubleChirpSpacingHardMilliseconds = 700.0;
+
+  /** Spread of that spacing (the log-normal sigma). 0 makes it exactly the interpolated value. */
+  double doubleChirpSpacingSpread = 0.3;
 
   /**
    * The soonest a turn may start after the previous turn started, in milliseconds. Keeps
@@ -211,6 +259,7 @@ struct ConversationConfig {
   unsigned statisticsConversationCount = 300;
 
   HeatConfig heat;
+  DifficultyConfig difficulty;
   TimingConfig timing;
   TemperamentConfig temperament;
   AudioConfig audio;
@@ -254,13 +303,23 @@ static_assert(kDefaults.heat.wobbleAmount >= 0.0, "wobbleAmount must not be nega
 static_assert(kDefaults.heat.wobblePeriodSeconds > 0.0, "wobblePeriodSeconds must be positive");
 static_assert(kDefaults.heat.fastWobbleRatio > 1.0, "fastWobbleRatio must be above 1");
 
+static_assert(isProbability(kDefaults.difficulty.openingDifficulty),
+              "openingDifficulty must be within 0..1");
+static_assert(isProbability(kDefaults.difficulty.topicShiftProbability),
+              "topicShiftProbability must be within 0..1");
+static_assert(kDefaults.difficulty.topicShiftSkew > 0.0, "topicShiftSkew must be above 0");
+static_assert(kDefaults.difficulty.driftSpread >= 0.0, "driftSpread must not be negative");
+
 static_assert(kDefaults.timing.utteranceMedianMilliseconds > 0.0,
               "utteranceMedianMilliseconds must be positive");
 static_assert(kDefaults.timing.utteranceSpread >= 0.0, "utteranceSpread must not be negative");
 static_assert(kDefaults.timing.hotUtteranceScale > 0.0, "hotUtteranceScale must be positive");
-static_assert(kDefaults.timing.gapMedianMilliseconds > 0.0,
-              "gapMedianMilliseconds must be positive");
+static_assert(kDefaults.timing.easyGapMedianMilliseconds > 0.0,
+              "easyGapMedianMilliseconds must be positive");
+static_assert(kDefaults.timing.hardGapMedianMilliseconds > 0.0,
+              "hardGapMedianMilliseconds must be positive");
 static_assert(kDefaults.timing.gapSpread >= 0.0, "gapSpread must not be negative");
+static_assert(kDefaults.timing.hotThinkingScale > 0.0, "hotThinkingScale must be positive");
 static_assert(kDefaults.timing.sameSpeakerExtraPauseMilliseconds >= 0.0,
               "sameSpeakerExtraPauseMilliseconds must not be negative");
 static_assert(isProbability(kDefaults.timing.coldOverlapProbability) &&
@@ -273,8 +332,11 @@ static_assert(isProbability(kDefaults.timing.lapseMaxProbability),
               "lapseMaxProbability must be within 0..1");
 static_assert(isOrdered(kDefaults.timing.lapseSeconds) && kDefaults.timing.lapseSeconds.min >= 0.0,
               "lapseSeconds must be an ordered, non-negative range");
-static_assert(kDefaults.timing.doubleChirpSpacingMilliseconds > 0.0,
-              "doubleChirpSpacingMilliseconds must be positive");
+static_assert(kDefaults.timing.doubleChirpSpacingEasyMilliseconds > 0.0 &&
+                  kDefaults.timing.doubleChirpSpacingHardMilliseconds > 0.0,
+              "double-chirp spacings must be positive");
+static_assert(kDefaults.timing.doubleChirpSpacingSpread >= 0.0,
+              "doubleChirpSpacingSpread must not be negative");
 static_assert(kDefaults.timing.minTurnSpacingMilliseconds >= 0.0,
               "minTurnSpacingMilliseconds must not be negative");
 static_assert(kDefaults.timing.minSameSlotGapMilliseconds >= 0.0,

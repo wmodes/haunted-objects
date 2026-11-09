@@ -350,6 +350,16 @@ borrows only timing; each slot keeps its own voice. The pieces:
   longer, as if still thinking.
 - **Lapses.** Long silences (1.5-5 s) become likely only after the heat peak, as heat falls, so
   the opening stays brisk and the ending trails off.
+- **Difficulty.** How much thought a turn takes to answer, from 0 (trivial, like "Hi") to 1 (a
+  probing question). It sets the pause before the reply, so conversations lope: quick small talk,
+  a stall at a hard question, then easing back. It has memory (it drifts turn to turn, with
+  occasional topic shifts to a fresh level, biased toward easy), so pauses come in streaks, and it
+  also stretches the pause inside a two-chirp turn ("Well... part time"). Example that shaped it:
+
+  > A: Hi! B: (very little pause) Hey. A: (very little) How's it going? B: (slightly longer)
+  > Pretty good, you? A: (long pause to think) Well, decent. I guess. (pause) Are you still
+  > working at X? B: (medium pause) Yeah, sorta. A: (short) Sorta? B: (longer pause) Well (pause)
+  > part time.
 - **Arc.** Nothing is scripted. As heat rises, idle slots are roped in and side conversations
   can form among the bystanders; as heat falls, slots drop out until it settles back to two and
   ends. Then the next suite (usually battery-ambient) takes over. An earlier idea, a fixed arc of
@@ -392,7 +402,9 @@ gap, the first sim sounded like ping-pong, and its cold gap (700 ms against a re
 150 ms) made the opening too slow. The model now draws:
 
 - an **implied utterance**, log-normal (skewed), median about 0.9 s, a little shorter when hot;
-- a **gap**, log-normal, median about 150 ms: mostly short, with a long tail of real pauses;
+- a **pause**, log-normal (mostly short, with a long tail of real pauses), whose median slides
+  with the difficulty of the turn being answered, from about 60 ms (trivial) to about 1.2 s
+  (hard), and is a little shorter when hot;
 - **+140 ms** when the same slot keeps the floor;
 - **overlap as its own event**, because a 10 ms chirp can only be heard talking over another if
   the two land almost on top of each other: with a chance that rises with heat (4% cold, 35%
@@ -401,7 +413,9 @@ gap, the first sim sounded like ping-pong, and its cold gap (700 ms against a re
   the end nears.
 
 These numbers are starting points to tune by ear. The sourced anchors are the utterance median,
-the gap median, and the 140 ms; the overlap and lapse chances are design choices.
+the short-pause-with-a-long-tail shape, and the 140 ms; the difficulty mapping, the overlap
+chances, and the lapse chances are design choices. (I recall that real response delays are longer
+for harder or less-preferred answers, which motivates difficulty, but I have not verified it.)
 
 **Build plan.** One change at a time, each as a host-only experiment you can listen to before
 anything reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven
@@ -423,7 +437,26 @@ after listening. Measured over 300 conversations of two slots:
 | Talking over, cold / warm / hot | rises with heat | 4.5% / 8.7% / 13.8% |
 | Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.60 |
 
-Whether it now feels like a real conversation is judged by ear. Steps 2 to 4 are not started.
+After a second listening the pauses still felt uniform: each pause was an independent draw from
+one distribution, so there was no rhythm. The model was extended with difficulty (above), so the
+pause before a reply follows how hard the last turn was to answer, in streaks. Measured over 300
+conversations of two slots:
+
+| Measure | Aim | Result |
+|---|---|---|
+| Two-chirp turns | about 1 in 10 | 8.5% |
+| Median turn-start to turn-start | about 1 s | 1131 ms |
+| Ordinary pauses, 10th / median / 90th percentile | much wider than before | 66 / 230 / 728 ms (11x) |
+| Pause sizes: under 100 ms / 100-400 / 400-1000 / over 1 s | very short to long | 16% / 59% / 20% / 5% |
+| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.39 |
+| Same-speaker vs speaker-change pause (mean) | same speaker longer | 392 ms vs 257 ms |
+| Talking over, cold / warm / hot | rises with heat | 4.4% / 9.4% / 13.3% |
+| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.58 |
+
+Known quirk: difficulty is a random walk with no pull toward easy, so it sometimes sits at the
+extremes for several turns (stuck at 1.00). If runs of long stalls feel unnatural, add a pull
+toward easy. Whether it now feels like a real conversation is judged by ear. Steps 2 to 4 are not
+started.
 
 #### Ensemble suite
 
@@ -471,6 +504,7 @@ used; terms marked "proposed" are awaiting approval.
 | InterludeScheduler | The earlier name for the scheduler; see SuiteScheduler. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
 | Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |
+| difficulty | How much thought a turn takes to answer, from 0 (trivial) to 1 (hard). Sets the pause before the reply and the pause inside a two-chirp turn; drifts turn to turn with occasional topic shifts. |
 | implied utterance | (proposed) The unheard speech a chirp stands in for. Its length plus a gap sets the spacing between turns. |
 | lapse | (proposed) A long silence in a conversation. Only likely during the wind-down, as heat falls. |
 | cast | The slots taking part in one conversation. |

@@ -23,6 +23,15 @@ double blend(double from, double to, double amount) {
 }
 
 /**
+ * Position `amount` (0..1) of the way from `from` to `to` on a log scale, so equal steps in
+ * `amount` multiply the value by equal factors. Right for timing, where 60 ms to 1200 ms is a
+ * twenty-fold range and the middle should be about 270 ms, not 630 ms.
+ */
+double blendLog(double from, double to, double amount) {
+  return std::exp(blend(std::log(from), std::log(to), amount));
+}
+
+/**
  * A skewed draw: log-normal with the given median and spread (sigma). Mostly values near the
  * median, with a long tail of larger ones, like real speech timing.
  */
@@ -34,6 +43,18 @@ double drawSkewed(double median, double spread, std::mt19937& rng) {
 double smoothstep(double x) {
   const double clamped = std::clamp(x, 0.0, 1.0);
   return clamped * clamped * (3.0 - 2.0 * clamped);
+}
+
+/**
+ * How hard the next turn is to answer, given how hard the one before it was. Usually a small
+ * drift from the previous level; now and then a topic shift to a fresh level, biased toward easy.
+ */
+double drawDifficulty(const DifficultyConfig& config, double previous, std::mt19937& rng) {
+  if (std::bernoulli_distribution(config.topicShiftProbability)(rng)) {
+    return std::pow(std::uniform_real_distribution<double>(0.0, 1.0)(rng), config.topicShiftSkew);
+  }
+  return std::clamp(previous + std::normal_distribution<double>(0.0, config.driftSpread)(rng),
+                    0.0, 1.0);
 }
 
 }  // namespace
@@ -77,6 +98,8 @@ Conversation ConversationGenerator::generate() const {
   bool followsSameSpeaker = false;
   bool overlapsPrevious = false;
   bool afterLapse = false;
+  // How hard the turn being answered was; the opening answers small talk.
+  double demand = config_.difficulty.openingDifficulty;
 
   while (true) {
     const Participant& participant = cast[speaker];
@@ -97,9 +120,16 @@ Conversation ConversationGenerator::generate() const {
         temperament.maxDoubleChirpProbability * participant.wordiness *
         blend(temperament.coldDoubleChirpFraction, 1.0, heatNow);
     const unsigned chirpCount = std::bernoulli_distribution(doubleChance)(rng) ? 2u : 1u;
+
+    // The pause inside a two-chirp turn ("Well... part time") grows with how hard the answered
+    // turn was.
+    const double innerSpacingMilliseconds =
+        drawSkewed(blendLog(timing.doubleChirpSpacingEasyMilliseconds,
+                            timing.doubleChirpSpacingHardMilliseconds, demand),
+                   timing.doubleChirpSpacingSpread, rng);
     for (unsigned i = 0; i < chirpCount; ++i) {
       const double chirpStartSeconds =
-          startSeconds + i * timing.doubleChirpSpacingMilliseconds / kMillisecondsPerSecond;
+          startSeconds + i * innerSpacingMilliseconds / kMillisecondsPerSecond;
       if (chirpStartSeconds >= config_.durationSeconds) {
         break;
       }
@@ -112,8 +142,11 @@ Conversation ConversationGenerator::generate() const {
         timing.utteranceMedianMilliseconds * blend(1.0, timing.hotUtteranceScale, heatNow),
         timing.utteranceSpread, rng);
     if (chirpCount == 2) {
-      utteranceMilliseconds += timing.doubleChirpSpacingMilliseconds;
+      utteranceMilliseconds += innerSpacingMilliseconds;
     }
+
+    // How hard this turn is to answer. It sets the pause before the reply.
+    const double difficulty = drawDifficulty(config_.difficulty, demand, rng);
 
     // Who speaks next, and how they come in.
     const std::size_t nextSpeaker = pickSpeaker(rng);
@@ -142,8 +175,12 @@ Conversation ConversationGenerator::generate() const {
       gapMilliseconds = drawFrom(timing.lapseSeconds, rng) * kMillisecondsPerSecond;
       intervalMilliseconds = utteranceMilliseconds + gapMilliseconds;
     } else {
-      // An ordinary pause; a slot keeping the floor takes a little longer, as if thinking.
-      gapMilliseconds = drawSkewed(timing.gapMedianMilliseconds, timing.gapSpread, rng);
+      // An ordinary pause: short for something easy, long for something hard to answer, and a
+      // little shorter when heated. A slot keeping the floor takes longer, as if still thinking.
+      const double medianMilliseconds =
+          blendLog(timing.easyGapMedianMilliseconds, timing.hardGapMedianMilliseconds, difficulty) *
+          blend(1.0, timing.hotThinkingScale, heatNow);
+      gapMilliseconds = drawSkewed(medianMilliseconds, timing.gapSpread, rng);
       if (sameSpeakerNext) {
         gapMilliseconds += timing.sameSpeakerExtraPauseMilliseconds;
       }
@@ -154,8 +191,8 @@ Conversation ConversationGenerator::generate() const {
     intervalMilliseconds = std::max(intervalMilliseconds, timing.minTurnSpacingMilliseconds);
     const double intervalSeconds = intervalMilliseconds / kMillisecondsPerSecond;
 
-    conversation.turns.push_back({participant.slot, startSeconds, chirpCount, heatNow,
-                                  intervalSeconds, gapBeforeSeconds, followsSameSpeaker,
+    conversation.turns.push_back({participant.slot, startSeconds, chirpCount, heatNow, difficulty,
+                                  demand, intervalSeconds, gapBeforeSeconds, followsSameSpeaker,
                                   overlapsPrevious, afterLapse});
 
     // Set up the next turn.
@@ -164,6 +201,7 @@ Conversation ConversationGenerator::generate() const {
     overlapsPrevious = overlapNext;
     afterLapse = lapseNext;
     speaker = nextSpeaker;
+    demand = difficulty;
     nextStartSeconds = startSeconds + intervalSeconds;
   }
 

@@ -34,6 +34,10 @@ struct ConversationTurn {
   unsigned chirpCount;
   /** Heat at the moment the turn started. */
   double heat;
+  /** How hard this turn was to answer (0 trivial, 1 hard); it sets the pause before the reply. */
+  double difficulty;
+  /** How hard the turn this one answers was; it sets this turn's pause and inner chirp spacing. */
+  double demand;
   /** Time from this turn's start to the next turn's start; 0 for the final turn. */
   double intervalToNextSeconds;
 
