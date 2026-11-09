@@ -98,7 +98,7 @@ struct TimingConfig {
   double easyGapMedianMilliseconds = 300.0;
 
   /** Median silence before replying to a hard turn (difficulty 1), in milliseconds. */
-  double hardGapMedianMilliseconds = 1800.0;
+  double hardGapMedianMilliseconds = 3600.0;
 
   /**
    * Spread of the silence around its median (the log-normal sigma). Difficulty explains most of
@@ -136,7 +136,7 @@ struct TimingConfig {
    * The longest silence between ordinary turns, in milliseconds. A hard ceiling: no ordinary
    * pause is longer. Lapses are exempt, because they are meant to be long.
    */
-  double maxOrdinaryGapMilliseconds = 2400.0;
+  double maxOrdinaryGapMilliseconds = 4800.0;
 
   /**
    * Heat below which nobody jumps in, 0 to 1. Keeps the cool opening orderly: talking over only
@@ -180,7 +180,7 @@ struct TimingConfig {
    * Silence between the two chirps of a two-chirp turn when answering a hard turn, in
    * milliseconds ("Well... part time."). Interpolated by difficulty.
    */
-  double doubleChirpSpacingHardMilliseconds = 577.0;
+  double doubleChirpSpacingHardMilliseconds = 1154.0;
 
   /** Spread of that spacing (the log-normal sigma). 0 makes it exactly the interpolated value. */
   double doubleChirpSpacingSpread = 0.225;
