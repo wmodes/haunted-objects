@@ -12,5 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README, CHANGELOG, and Dev README.
 - `detectors/` PlatformIO project (classic ESP32, `esp32dev`, Arduino framework, platform pinned
   to espressif32 8.0.0), with its own README.
+- Design decision: layered, typed config and secrets (shared defaults, per-piece overrides),
+  with `Config` and `Secrets` added to the lexicon.
 - Repository layout: one PlatformIO project per haunted object, each in its own top-level folder;
   the smoke alarm piece goes in `detectors/`.

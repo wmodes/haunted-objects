@@ -26,6 +26,24 @@ haunted-objects/
   <next object>/     future pieces
 ```
 
+### Configuration and secrets
+
+Every value that can change what the firmware does lives in config, never hard-coded. Config and
+secrets are both layered: shared defaults first, then each piece's own values, so the local value
+overwrites the global one.
+
+- **Typed values, not macros.** The shared layer is a struct whose fields carry default values;
+  a piece builds on it and sets the fields it needs to change. A misspelled field name is a
+  compile error (a misspelled macro would silently do nothing), and the constructor validates
+  and clamps values.
+- **One source of truth.** `Config` and `Secrets` are immutable value objects, built once at
+  startup and handed to every class that needs them. Nothing else reads the raw values.
+- **Where things live.** Shared layer in `shared/include/`, each piece's layer in its own
+  `include/`. Real credentials go in a gitignored `secrets.h`; a committed `secrets-sample.h`
+  with `#####` placeholders shows the shape.
+- **Resolved at compile time.** Changing a value means rebuilding and reflashing (over OTA once
+  that exists).
+
 ### Behavior (smoke alarm piece): ambient with interludes
 
 The piece is a hybrid of emergent and composed behavior.
@@ -80,3 +98,5 @@ Code, docs, and conversation use these words. A new term is proposed and approve
 | conversation | An interlude in which the alarms answer each other, tentative at first, then frenetic. |
 | ensemble | An interlude in which the alarms build a rhythmic score together, simple at first, then more complex. |
 | InterludeScheduler | The class that decides when an interlude happens and which kind. |
+| Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
+| Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets.h`. |
