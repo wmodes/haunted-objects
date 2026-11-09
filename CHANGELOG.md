@@ -19,6 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the ELEGOO ESP32 board.
 - Design decision: tests (formal, `test/`) are separate from experiments (throwaway,
   `experiments/`, one-way dependency); `test` and `experiment` added to the lexicon.
+- Detector profiles: `detectors/include/DetectorProfiles.h` gives each of 12 slots a fixed chirp
+  length, frequency, and interval, with a `model` recording where the values came from, validated
+  at compile time. Design Document records the research behind the ranges; `slot` and
+  `detector profile` added to the lexicon.
 - Wokwi emulation: the blink experiment runs on a simulated ESP32 via `wokwi-cli`
   (`wokwi.toml`, `diagram.json`), passing on its serial output. The API token lives in the
   gitignored `.env`; `.env.example` is the committed template.

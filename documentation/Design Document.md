@@ -94,6 +94,36 @@ The piece is a hybrid of emergent and composed behavior.
 - **Connections:** quick-disconnect 2-pin pigtails per alarm.
 - **Power:** separate supplies for the ESP32 and the 9V horn rail, grounds tied together.
 
+### Detector profiles (smoke alarm piece)
+
+Each slot has a fixed chirp identity that holds across power-ups: whatever is plugged into slot 1
+always acts like slot 1. A slot's **profile** gives its chirp length, chirp frequency, and chirp
+interval, plus a `model` naming the commercial detector it imitates, which records where the
+numbers came from. The table lives in `detectors/include/DetectorProfiles.h` (12 slots, which
+leaves headroom for the real alarm count) and is validated at compile time. The values were drawn
+once, at random within each model's range, then fixed; edit them freely.
+
+What commercial low-battery chirps measure, from the research (chirp length is the horn-drive
+burst from detector chip datasheets, not a measured waveform):
+
+| Model | Chirp length | Chirp interval | Source |
+|---|---|---|---|
+| MC145010-class | 9.5-11.5 ms | 38.9-47.1 s | [NXP MC145010](https://www.nxp.com/products/MC145010) datasheet |
+| MC146012?-class | 7.2-8.8 ms | 28.8-35.2 s | a second Motorola datasheet; part number unconfirmed |
+| A5348-class | 8-12 ms | 32-48 s | [Allegro A5348](https://www.allegromicro.com/-/media/files/datasheets/a5348-datasheet.pdf) datasheet |
+| A5366-class | about 10 ms | about 43 s | [Allegro/Sensitron A5366](https://html.alldatasheet.com/html-pdf/218675/SENSITRON/A5366/4404/9/A5366.html) datasheet; the spread around these is assumed |
+| Kidde-style | assumed 8-12 ms | 30-40 s | [Kidde support](https://www.kidde.com/home-safety/en/us/support/help-center/browse-articles/articles/what_causes_intermittent_beeping_or_chirping_.aspx) |
+| BRK/First-Alert-style | assumed 8-12 ms | 55-60 s | [BRK](https://www.brkelectronics.com/faqs/diy/why-do-smoke-alarms-chirp-intermittently-new-construction), [First Alert](https://www.firstalertstore.com/store/product-support/why-is-my-smoke-alarm-chirping-beep-patterns.htm) |
+
+NFPA 72 requires the low-battery signal at least once a minute for 7 days
+([excerpt](https://fsc.ri.gov/media/156/download)), which caps commercial intervals at about 60 s.
+The overall interval range is about 30-60 s.
+
+Not sourced, so assumed: chirp frequency (placed near 3 kHz, 2850-3250 Hz, where the horns
+resonate; tune each by ear once the horns are wired), and chirp length for the Kidde and
+BRK/First Alert models. A 10 ms burst into a resonant piezo housing probably sounds longer than
+10 ms because the housing rings (unverified inference); judge by ear on the real horns.
+
 ### Tooling
 
 - PlatformIO via the CLI, not the VS Code extension, with each piece as its own PlatformIO
@@ -123,6 +153,8 @@ Code, docs, and conversation use these words. A new term is proposed and approve
 | ensemble | An interlude in which the alarms build a rhythmic score together, simple at first, then more complex. |
 | InterludeScheduler | The class that decides when an interlude happens and which kind. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
+| slot | The numbered position of a detector, counted from 1. A slot always behaves the same across power-ups. |
+| detector profile | A slot's fixed chirp identity: chirp length, chirp frequency, chirp interval, and the `model` it imitates. |
 | test | A formal check of a class through its public interface, including mutation runs. Lives in `test/`. |
 | experiment | A throwaway probe of hardware or an idea. Lives in `experiments/`; nothing outside it depends on it. |
 | Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |
