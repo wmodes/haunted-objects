@@ -14,5 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   to espressif32 8.0.0), with its own README.
 - Design decision: layered, typed config and secrets (shared defaults, per-piece overrides),
   with `Config` and `Secrets` added to the lexicon.
+- Layered config and secrets code: `SharedConfig` and `SharedSecrets` in `shared/include/`,
+  `Config` and `Secrets` in `detectors/include/`. Real secrets live in gitignored `secrets_*.h`
+  files with committed `.h.example` templates.
 - Repository layout: one PlatformIO project per haunted object, each in its own top-level folder;
   the smoke alarm piece goes in `detectors/`.

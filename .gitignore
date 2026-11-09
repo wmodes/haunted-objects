@@ -5,7 +5,10 @@ CLAUDE.md
 .pio/
 
 # Credentials (WiFi, OTA passwords, API keys). Never commit.
-secrets.h
+# Every real secrets file starts with "secrets_" and ends in ".h". Templates end in ".h.example",
+# so this pattern never matches them. The underscore matters: macOS ignores case, so a bare
+# "secrets*" would also match the Secrets.h class header.
+secrets_*.h
 .env
 
 # macOS

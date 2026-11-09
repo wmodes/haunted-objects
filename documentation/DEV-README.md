@@ -25,7 +25,19 @@ Build, flash, and monitor commands will be added here once there is firmware to 
 
 ## Secrets
 
-WiFi and OTA credentials go in `secrets.h`, which is gitignored. Never commit it. Create a secrets-sample.h for the repo with credentials #############ed out.
+WiFi and OTA credentials live in gitignored files named `secrets_<layer>.h`. Never commit them.
+Each has a committed `.h.example` template with `#####` placeholders. After cloning, copy each
+template and fill in the real values:
+
+```
+cp shared/include/secrets_shared.h.example shared/include/secrets_shared.h
+cp detectors/include/secrets_detectors.h.example detectors/include/secrets_detectors.h
+```
+
+`secrets_shared.h` holds credentials common to every haunted object; a piece's own
+`secrets_<piece>.h` overwrites any of them for that piece only. The single ignore rule
+`secrets_*.h` covers all of them. (Credentials are also compiled into the firmware image, so
+protect the device and its binaries too.)
 
 ## Testbenches
 
