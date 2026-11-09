@@ -1,0 +1,12 @@
+# Standing decisions and pointers; may hold sensitive details. Never commit.
+CLAUDE.md
+
+# PlatformIO build output and downloaded toolchains/libraries
+.pio/
+
+# Credentials (WiFi, OTA passwords, API keys). Never commit.
+secrets.h
+.env
+
+# macOS
+.DS_Store
