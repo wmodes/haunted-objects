@@ -124,6 +124,59 @@ resonate; tune each by ear once the horns are wired), and chirp length for the K
 BRK/First Alert models. A 10 ms burst into a resonant piezo housing probably sounds longer than
 10 ms because the housing rings (unverified inference); judge by ear on the real horns.
 
+#### Redrawing the profile table
+
+If the table needs drawing again (more slots, a different spread, new research), draw it this way
+so the result stays comparable:
+
+1. **Slots and models.** Give each model an equal share of the slots (the current 12 slots are the
+   six models below, two slots each), shuffled randomly across the slots.
+2. **Draw uniformly within each model's range**, then round: chirp length and chirp interval to
+   0.1, chirp frequency to the nearest 10 Hz.
+3. **Check the result.** Slots count up from 1, and each interval is longer than its chirp. The
+   header's compile-time check enforces this.
+
+Ranges used for the current draw. Ranges marked "assumed" are not from a source:
+
+| Model | Chirp length range | Chirp interval range | Basis |
+|---|---|---|---|
+| MC145010-class | 9.5-11.5 ms | 38.9-47.1 s | datasheet limits |
+| MC146012?-class | 7.2-8.8 ms | 28.8-35.2 s | datasheet limits |
+| A5348-class | 8.0-12.0 ms | 32.0-48.0 s | datasheet limits |
+| A5366-class | 9.0-11.0 ms | 41.0-45.0 s | datasheet gives about 10 ms and 43 s; spread assumed |
+| Kidde-style | 8.0-12.0 ms (assumed) | 30.0-40.0 s | interval from Kidde; length from the chip datasheets |
+| BRK/First-Alert-style | 8.0-12.0 ms (assumed) | 55.0-60.0 s | interval from BRK and First Alert, capped at 60 s by NFPA 72; length from the chip datasheets |
+
+Chirp frequency for every model: 2850-3250 Hz (assumed; see below).
+
+The current table was produced with Python's `random.Random(20261109)`. The script was a
+throwaway and was not kept, so the seed alone cannot reproduce it. These parameters can.
+
+#### Research notes and caveats
+
+- **How reliable these numbers are.** They come from web-search summaries of datasheets, patents,
+  and manufacturer pages. The datasheets themselves were not read directly, and several sources
+  are secondary (consumer guides). Before relying on a figure for a decision that matters, check
+  it against the datasheet or the manufacturer's manual.
+- **Low-battery chirp interval.** Chip-driven alarms land at about 29-48 s. Manufacturer pages
+  give 30-40 s, 30-60 s, or about 60 s, and Kidde's own pages disagree with each other. NFPA 72
+  requires the signal at least once a minute for 7 days, so about 60 s is the ceiling. Overall
+  range: about 30-60 s.
+- **Chirp length.** About 8-12 ms (extremes 7.2-12 ms) from four chip datasheets and patent
+  descriptions of the horn-drive burst; patents describe 10-12 ms. No measured waveform of a
+  real alarm was found.
+- **End-of-life is a different signal.** A sealed-battery Kidde alarm chirps about every 30 s to
+  say it should be replaced, and a fresh battery does not clear it. This is the same rhythm as
+  some low-battery chirps. A double-chirp end-of-life pattern appeared in one manual excerpt but is
+  unconfirmed.
+- **Cold triggers low-battery chirps.** Kidde says cold air can start the low-battery chirp,
+  which explains chirps that begin overnight. A possible source of realistic variation, not used.
+- **Could not find:** the chirp frequency from any source; a measured recording or spectrogram of
+  a real chirp; the UL 217 text itself; chirp length for Kidde, BRK, or First Alert models.
+- **How to firm this up.** Read the cited datasheets directly; measure a real working alarm if one
+  becomes available (the salvaged units no longer work); and judge the final chirp length and
+  pitch by ear on the real horns, since each horn's housing resonates and rings.
+
 ### Tooling
 
 - PlatformIO via the CLI, not the VS Code extension, with each piece as its own PlatformIO
