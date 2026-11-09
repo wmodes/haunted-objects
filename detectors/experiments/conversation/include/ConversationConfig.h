@@ -111,17 +111,17 @@ struct TimingConfig {
   double hotUtteranceScale = 0.8;
 
   /** Median pause before replying to a trivial turn (difficulty 0), in milliseconds. */
-  double easyGapMedianMilliseconds = 60.0;
+  double easyGapMedianMilliseconds = 87.0;
 
   /** Median pause before replying to a hard turn (difficulty 1), in milliseconds. */
-  double hardGapMedianMilliseconds = 1200.0;
+  double hardGapMedianMilliseconds = 825.0;
 
   /**
    * Spread of the pause around its median (the log-normal sigma). Difficulty explains most of
    * the variety, so this is smaller than a one-size-fits-all pause would need. Larger gives more
    * surprise.
    */
-  double gapSpread = 0.5;
+  double gapSpread = 0.375;
 
   /**
    * Factor applied to thinking pauses at full heat; 1 means heat does not shorten them, and below
@@ -161,16 +161,16 @@ struct TimingConfig {
    * Time between the two chirps of a two-chirp turn when answering a trivial turn, in
    * milliseconds ("Well." "Yeah.").
    */
-  double doubleChirpSpacingEasyMilliseconds = 150.0;
+  double doubleChirpSpacingEasyMilliseconds = 182.0;
 
   /**
    * Time between the two chirps of a two-chirp turn when answering a hard turn, in milliseconds
    * ("Well... part time."). Interpolated by difficulty.
    */
-  double doubleChirpSpacingHardMilliseconds = 700.0;
+  double doubleChirpSpacingHardMilliseconds = 577.0;
 
   /** Spread of that spacing (the log-normal sigma). 0 makes it exactly the interpolated value. */
-  double doubleChirpSpacingSpread = 0.3;
+  double doubleChirpSpacingSpread = 0.225;
 
   /**
    * The soonest a turn may start after the previous turn started, in milliseconds. Keeps

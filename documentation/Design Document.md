@@ -403,7 +403,7 @@ gap, the first sim sounded like ping-pong, and its cold gap (700 ms against a re
 
 - an **implied utterance**, log-normal (skewed), median about 0.9 s, a little shorter when hot;
 - a **pause**, log-normal (mostly short, with a long tail of real pauses), whose median slides
-  with the difficulty of the turn being answered, from about 60 ms (trivial) to about 1.2 s
+  with the difficulty of the turn being answered, from about 87 ms (trivial) to about 825 ms
   (hard), and is a little shorter when hot;
 - **+140 ms** when the same slot keeps the floor;
 - **overlap as its own event**, because a 10 ms chirp can only be heard talking over another if
@@ -445,13 +445,20 @@ conversations of two slots:
 | Measure | Aim | Result |
 |---|---|---|
 | Two-chirp turns | about 1 in 10 | 8.5% |
-| Median turn-start to turn-start | about 1 s | 1131 ms |
-| Ordinary pauses, 10th / median / 90th percentile | much wider than before | 66 / 230 / 728 ms (11x) |
-| Pause sizes: under 100 ms / 100-400 / 400-1000 / over 1 s | very short to long | 16% / 59% / 20% / 5% |
-| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.39 |
-| Same-speaker vs speaker-change pause (mean) | same speaker longer | 392 ms vs 257 ms |
-| Talking over, cold / warm / hot | rises with heat | 4.4% / 9.4% / 13.3% |
-| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.58 |
+| Median turn-start to turn-start | about 1 s | 1102 ms |
+| Ordinary pauses, 10th / median / 90th percentile | varied, but no wild outliers | 88 / 247 / 574 ms (7x) |
+| Pause sizes: under 100 ms / 100-400 / 400-1000 / over 1 s | very short to long | 12% / 65% / 21% / 1% |
+| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.37 |
+| Same-speaker vs speaker-change pause (mean) | same speaker longer | 357 ms vs 221 ms |
+| Talking over, cold / warm / hot | rises with heat | 4.4% / 9.5% / 13.1% |
+| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 1.69 |
+
+After a third listening, some pauses were a little long and some a little rapid, so both ends were
+trimmed by 25% on a log scale: each end of the pause range was pulled 25% of the way toward the
+middle (87-825 ms instead of 60-1200 ms for the pause before a reply, 182-577 ms instead of
+150-700 ms for the pause inside a two-chirp turn) and the random spread was cut by 25% (0.5 to
+0.375, and 0.3 to 0.225). Before the trim the spread was 66 / 230 / 728 ms (11x) with 5% of pauses
+over a second. Lapses are separate and were not trimmed.
 
 Known quirk: difficulty is a random walk with no pull toward easy, so it sometimes sits at the
 extremes for several turns (stuck at 1.00). If runs of long stalls feel unnatural, add a pull

@@ -23,6 +23,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Changed: conversation pauses trimmed 25% at both ends (log scale) after listening: pause before
+  a reply 87-825 ms (was 60-1200), inner pause of a two-chirp turn 182-577 ms (was 150-700), and
+  the random spreads cut by 25%. Pooled 10th/median/90th percentile is now 88/247/574 ms.
 - Changed: conversation experiment now models difficulty (how hard a turn is to answer, 0 to 1,
   with memory and occasional topic shifts). The pause before a reply and the pause inside a
   two-chirp turn follow it, so pauses vary widely and come in streaks (correlation of consecutive
