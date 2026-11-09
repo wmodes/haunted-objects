@@ -1,14 +1,9 @@
 # Design Document
 
-All design decisions for the haunted objects are compiled here. Each object is a "piece" with
-its own folder; sections specific to one piece say so in their headings.
+All design decisions for the haunted objects are compiled here. Repository-wide decisions come
+first. Each piece (one haunted object, in its own folder) then has its own section.
 
-## Concept (smoke alarm piece)
-
-Salvaged smoke alarms, reassembled to look stock, chirping like their batteries are dying. The
-horns are disconnected from the original alarm boards and driven by a microcontroller instead.
-
-## Decisions
+## Repository-wide decisions
 
 ### Repository layout
 
@@ -68,27 +63,31 @@ overwrites the global one.
 - **Resolved at compile time.** Changing a value means rebuilding and reflashing (over OTA once
   that exists).
 
-### Behavior (smoke alarm piece): ambient with interludes
+### Tooling
 
-The piece is a hybrid of emergent and composed behavior.
+- PlatformIO via the CLI, not the VS Code extension, with each piece as its own PlatformIO
+  project inside this repo.
+- The priority is that Claude Code can build, flash, and read serial output directly.
+- OTA updates over WiFi later, since the board will end up hidden in an installation.
+- Firmware can be emulated on the development Mac with the Wokwi CLI: a simulated classic ESP32,
+  run headless, with assertions on its serial output. This lets logic be exercised without
+  hardware. Emulation checks signals and logic, not sound, loudness, or piezo resonance.
 
-- **Ambient** is the default state. Each alarm plays its own battery pattern, inspired by the
-  rhythm of a real manufacturer's low-battery chirp. Ambient lasts for a configurable period
-  between interludes (`ambient_period_minutes`).
-- An **interlude** breaks into ambient, then hands back to it. There are two kinds:
-  - **Conversation**: the alarms appear to talk to each other, tentative at first, then a full
-    and increasingly frenetic exchange (the *Close Encounters of the Third Kind* model).
-  - **Ensemble**: the alarms appear to work together on a rhythmic or musical score that starts
-    simple and grows more complicated. None of the horns are tuned.
-- After an interlude, the alarms fall back to their battery patterns.
+## Smoke alarm piece
 
-### Hardware (smoke alarm piece)
+### Concept
+
+Salvaged smoke alarms, reassembled to look stock, chirping like their batteries are dying. The
+horns are disconnected from the original alarm boards and driven by a microcontroller instead.
+The alarms will be labeled non-functional.
+
+### Hardware
 
 - **Microcontroller:** a single ELEGOO ESP32 dev board, classic ESP-WROOM-32 (not S2/S3/C3/C6),
   CP2102 USB-serial, USB-C, 30-pin. Chosen for its many independent PWM channels. One board
-  drives all the horns directly, so interludes need no inter-board synchronization.
+  drives all the horns directly, so suites need no inter-board synchronization.
 - **Horn drivers:** TB6612FNG dual H-bridge boards, one board per two horns, independently
-  controlled. Run at 9V.
+  controlled. Run at 9V. (The boards have not arrived yet.)
 - **Horns:** 3-terminal piezos salvaged from the alarms, kept in their resonant housings. Two
   drive wires per horn; the feedback wire is unused. Polarity doesn't matter. Each horn has its
   own resonant sweet spot somewhere around 3kHz.
@@ -97,7 +96,7 @@ The piece is a hybrid of emergent and composed behavior.
 - **Connections:** quick-disconnect 2-pin pigtails per alarm.
 - **Power:** separate supplies for the ESP32 and the 9V horn rail, grounds tied together.
 
-### Detector profiles (smoke alarm piece)
+### Detector profiles
 
 Each slot has a fixed chirp identity that holds across power-ups: whatever is plugged into slot 1
 always acts like slot 1. A slot's **profile** gives its chirp length, chirp frequency, and chirp
@@ -130,8 +129,9 @@ The overall interval range is about 30-60 s.
 
 Chirp frequency is drawn from 3000-3500 Hz, based on patent test results and a product manual
 (see the research notes below); tune each horn by ear once the horns are wired. Not sourced, so
-assumed: chirp length for the Kidde and BRK/First Alert models. A 10 ms burst into a resonant piezo housing probably sounds longer than
-10 ms because the housing rings (unverified inference); judge by ear on the real horns.
+assumed: chirp length for the Kidde and BRK/First Alert models. A 10 ms burst into a resonant
+piezo housing probably sounds longer than 10 ms because the housing rings (unverified
+inference); judge by ear on the real horns.
 
 #### Redrawing the profile table
 
@@ -202,7 +202,7 @@ cannot reproduce the table. These parameters can.
   becomes available (the salvaged units no longer work); and judge the final chirp length and
   pitch by ear on the real horns, since each horn's housing resonates and rings.
 
-### Drive waveform (smoke alarm piece)
+### Drive waveform
 
 What waveform commercial alarm horns use, from the research. The sources are datasheets,
 application notes, and patents read through search summaries; no measured spectrum of a real
@@ -241,12 +241,87 @@ smoke alarm was found.
   measurement of a real smoke alarm's waveform or spectrum.
 
 Decision: waveform is a setting, not hard-coded. The detector is expected to drive its horns with
-a square wave (what the H-bridge produces natively and what the research documents). The chirp-table
-experiment, which plays through computer speakers, defaults to sine, and also offers square and
+a square wave (what the H-bridge produces natively and what the research documents). The
+experiments, which play through computer speakers, default to sine and also offer square and
 sawtooth so they can be compared by ear against how the real alarms sounded. Open: which waveform
 the real horns should get; judge by ear once the horns are wired.
 
-### Conversation suite (smoke alarm piece)
+### Suites
+
+The piece plays its buzzer behaviors as **suites**. There are three: battery-ambient,
+conversation, and ensemble. Together they are a hybrid of emergent and composed behavior: in
+battery-ambient the alarms run independently, and the other two are generated, composed
+episodes.
+
+#### How the suites fit together
+
+- **All suites are equal.** Every suite has the same interface, so the code has one rule for all
+  of them and no special case for ambient. "Battery-ambient always sits between the others" is
+  data, not code.
+- **Succession rules.** Each suite declares which suites may follow it, with weights.
+  Battery-ambient is followed by conversation or ensemble, picked by weight; conversation and
+  ensemble are each followed by battery-ambient. The scheduler asks the current suite for its
+  successors and draws one. Letting an interlude follow another interlude later means editing the
+  table, not the code. (Proposed names: `SuiteScheduler`, replacing the earlier
+  `InterludeScheduler`; a rename awaiting approval.)
+- **Each suite has its own duration range, recipe, recipe-specific settings, and succession
+  rules.** The duration is drawn fresh each time the suite runs, within its range, in seconds.
+  "Interlude" survives as the loose name for the non-ambient suites.
+- **Voice is shared, timing is the suite's.** Every suite plays through each slot's fixed voice
+  (see Detector profiles). Only timing varies.
+- **The goal is generative variation.** The recipe is declarative, with a range for every knob; a
+  generator draws concrete values from it each time the suite runs, so no two runs are alike.
+
+Durations, all config, in seconds:
+
+| Suite | Duration | Status |
+|---|---|---|
+| battery-ambient | 1200-3600 s (20-60 min) | decided |
+| conversation | much longer than first assumed; 60-240 s proposed | to be tuned by ear |
+| ensemble | 5-30 s (the earlier figure; not yet revisited) | open |
+
+**Recipe, generator, player.** A suite is built from three separate parts:
+
+1. **Recipe:** the declarative settings, with a range for every knob.
+2. **Generator:** a pure function of the recipe, a seed, and the available slots. It produces a
+   score: a list of timed chirps (slot and start time). It is seeded, so a run can be reproduced;
+   on the board the seed comes from the ESP32's hardware random source, passed in from outside.
+   It touches no hardware, so it can be tested on the development Mac and in the Wokwi
+   emulator, and mutation-tested.
+3. **Player:** walks the score and calls the horn driver at the right times, using each slot's
+   voice. This is the only part that touches hardware.
+
+**Recipe format.** The recipe shapes are typed C++ structs first, validated at compile time,
+starting with the battery-ambient suite (the simplest). JSON5 recipes are an authoring layer for
+later, once the shape has settled: written on the development Mac, validated, and converted at
+build time into the typed structs, so the firmware does not parse JSON5 itself. (I believe
+ArduinoJson accepts comments but not full JSON5; that is unverified.) Starting in JSON5 would
+freeze a schema while it is still changing.
+
+**Status.** Nothing is implemented in the firmware source yet (`detectors/src/` is empty).
+Experiments so far: `chirp-table` (a host-only render of battery-ambient timing, with warmup
+offsets), `conversation` (step 1 of the conversation suite), and `blink` (the toolchain and board
+check). The ensemble suite has not been started.
+
+#### Battery-ambient suite
+
+The default feel of the piece: salvaged alarms chirping as if their batteries were dying.
+
+- **Each slot chirps on its own**, in its own voice, at its profile's chirp interval (30-60 s;
+  see Detector profiles). The slots are independent: no coordination, no conversation.
+- **Random warmup offset.** Each slot starts after a random delay, drawn uniformly from zero up
+  to its own interval, and redrawn on each run like a real power-up. Without it, slots with
+  identical intervals would chirp in unison forever (slots 2 and 10 are both 41.6 s). With it,
+  they chirp at the same rate but out of step, and slots with nearly equal intervals (slots 1 and
+  9 at 35.3 s and 35.0 s) slowly drift in and out of step, which is realistic.
+- **Duration:** 1200-3600 s (20-60 min), drawn each time the suite runs.
+- **Prototyped as the `chirp-table` experiment:** slots 1-6 rendered to a WAV with each slot's
+  voice. The rendered file was checked against the table (burst count, start times, lengths, and
+  pitches) and the pitches were judged by ear.
+- **Recipe settings:** none beyond the profiles and the duration range yet; add jitter or other
+  variation only if the listening calls for it.
+
+#### Conversation suite
 
 The model is a vivid conversation between two people in a café, interesting enough to rope in the
 people at nearby tables. Each conversation is generated, not scripted, so every one differs. It
@@ -269,7 +344,9 @@ borrows only timing; each slot keeps its own voice. The pieces:
   over emerges from negative gaps at high heat.
 - **Arc.** Nothing is scripted. As heat rises, idle slots are roped in and side conversations
   can form among the bystanders; as heat falls, slots drop out until it settles back to two and
-  ends. Then the next suite (usually battery-ambient) takes over.
+  ends. Then the next suite (usually battery-ambient) takes over. An earlier idea, a fixed arc of
+  two, three, four, the whole room, a split, and back to two, was replaced by this generated one,
+  because a varied, unexpected arc was preferred.
 - **Duration.** Much longer than first assumed, because the familiar human feel comes from the
   pauses between turns. The proposed recipe range is 60-240 s, to be tuned.
 
@@ -287,42 +364,67 @@ read):
 - Not found: the overlap percentage, the distribution's shape, and an awkward-silence threshold.
 
 Chirps are about 10 ms long, far shorter than a spoken turn, so the time from one turn's start to
-the next's is modeled as a turn length plus a gap, and heat shortens both. This is an assumption
-to tune by ear, not a sourced figure.
+the next's is modeled as a turn length plus a gap, and heat shortens both. A chirp can only be
+heard "talking over" another if the two land almost on top of each other, which is why heat also
+shortens the turn length. This is an assumption to tune by ear, not a sourced figure.
 
-Built one change at a time, each as a host-only experiment you can listen to before anything
-reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven roping in,
-(3) side conversations, (4) winding down.
+**Build plan.** One change at a time, each as a host-only experiment you can listen to before
+anything reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven
+roping in, (3) side conversations, (4) winding down.
 
-### Tooling
+**Status.** Step 1 is built as the `conversation` experiment: two slots, the heat bell curve,
+heat-driven turn lengths and gaps, and per-slot talkativeness and wordiness drawn from a seed. It
+renders a WAV with each slot's voice and prints a report. The WAV was checked against the
+generated score. Open for tuning by ear: pace scales linearly with heat, so only the very top of
+the curve gets truly rapid; the cold end may be too slow; and talking over is rare at 10 ms
+chirps. Steps 2 to 4 are not started.
 
-- PlatformIO via the CLI, not the VS Code extension, with each piece as its own PlatformIO
-  project inside this repo.
-- The priority is that Claude Code can build, flash, and read serial output directly.
-- OTA updates over WiFi later, since the board will end up hidden in an installation.
-- Firmware can be emulated on the development Mac with the Wokwi CLI: a simulated classic ESP32,
-  run headless, with assertions on its serial output. This lets logic be exercised without
-  hardware. Emulation checks signals and logic, not sound, loudness, or piezo resonance.
+#### Ensemble suite
+
+Not yet designed. What is known:
+
+- **The idea.** The alarms appear to work together to make a simple, then increasingly
+  complicated, rhythmic or musical score. None of the horns is tuned: each slot keeps its own
+  fixed voice, so the "music" is rhythm and timing, not pitch.
+- **Duration.** The earlier figure was 5-30 s. Given how much longer the conversation needs, this
+  likely needs revisiting.
+- **Shape.** Like the other suites, it gets its own recipe, a seeded generator that produces a
+  score, and succession rules (it is followed by battery-ambient).
+- **Open:** what the recipe holds (patterns, layers entering, how complexity grows), how the
+  score builds, and how it ends.
 
 ## Open questions (smoke alarm piece)
 
 - How many alarms (this sets the pin budget: two ESP32 pins per horn)
 - How loud it needs to be in the space
+- The ensemble suite: its design and duration
+- The conversation suite's duration range (60-240 s proposed) and the pace tuning noted above
+- The `SuiteScheduler` rename (it replaces `InterludeScheduler`) and the term "succession rules"
+- Which waveform the real horns should get, judged by ear once they are wired
+- When to add JSON5 as the recipe authoring format
 
 ## Appendix: Lexicon
 
-Code, docs, and conversation use these words. A new term is proposed and approved before it is used.
+Code, docs, and conversation use these words. A new term is proposed and approved before it is
+used; terms marked "proposed" are awaiting approval.
 
 | Term | Meaning |
 |---|---|
 | chirp | One burst from one horn. |
+| suite | One named mode of buzzer behavior with its own duration range, recipe, and succession rules: battery-ambient, conversation, or ensemble. Distinct from a test, which is a formal check. |
+| recipe | A suite's declarative settings: a range for every knob, from which a generator draws concrete values each run. |
+| score | (proposed) A generator's output: a list of timed chirps (slot and start time), played later by the player. |
+| succession rules | (proposed) The weighted list of suites that may follow a suite. |
+| SuiteScheduler | (proposed) The class that picks the next suite from the current suite's succession rules and draws its duration. Replaces InterludeScheduler. |
+| battery-ambient | The suite in which every slot chirps independently at its own battery interval, like a dying low-battery chirp. "Ambient" is short for this. |
 | battery pattern | An alarm's own manufacturer-inspired chirp rhythm, running independently. |
-| ambient | The default state: every alarm plays its battery pattern independently. |
-| interlude | A composed episode that breaks into ambient and then hands back to it. |
-| conversation | An interlude in which the alarms answer each other, tentative at first, then frenetic. |
-| ensemble | An interlude in which the alarms build a rhythmic score together, simple at first, then more complex. |
-| InterludeScheduler | The class that decides when an interlude happens and which kind. |
+| warmup offset | A random delay, from zero up to a slot's own interval, before a slot's first chirp, so slots do not chirp in unison. |
+| interlude | A loose name for the non-ambient suites (conversation and ensemble), which succession rules always place between stretches of battery-ambient. |
+| conversation | The suite in which slots take turns chirping like people talking: a generated, heat-driven exchange that starts with two slots and draws in others. |
+| ensemble | The suite in which the alarms build a rhythmic score together, simple at first, then more complex. Not yet designed. |
+| InterludeScheduler | The earlier name for the scheduler; see SuiteScheduler. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
+| Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |
 | cast | The slots taking part in one conversation. |
 | turn | One slot's contribution to a conversation: one chirp, or two. |
 | heat | How lively a conversation is, from 0 to 1, following a bell curve over its length. More heat means smaller gaps and more slots joining in. |
@@ -335,4 +437,3 @@ Code, docs, and conversation use these words. A new term is proposed and approve
 | detector profile | A slot's fixed chirp identity: chirp length, chirp frequency, chirp interval, and the `model` it imitates. |
 | test | A formal check of a class through its public interface, including mutation runs. Lives in `test/`. |
 | experiment | A throwaway probe of hardware or an idea. Lives in `experiments/`; nothing outside it depends on it. |
-| Secrets | The immutable value object holding credentials (WiFi, OTA), built once from the gitignored `secrets_*.h` files. |

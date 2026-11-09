@@ -23,6 +23,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Design Document reorganized into repository-wide decisions and a smoke-alarm-piece section,
+  with the suites as subheads: how they fit together (equal suites, succession rules, durations,
+  recipe/generator/player split, typed recipes first and JSON5 later), battery-ambient (with the
+  random warmup offset), conversation (moved), and ensemble (not yet designed). Lexicon updated
+  (`suite`, `recipe`, `warmup offset`; `score`, `succession rules`, and `SuiteScheduler` proposed)
+  and open questions collected.
 - Conversation experiment (`detectors/experiments/conversation/`), step 1 of the conversation
   suite: two slots, heat following a bell curve over the conversation, heat-driven turn lengths and
   gaps, per-slot talkativeness and wordiness drawn from a seed, rendered to a WAV with each slot's
