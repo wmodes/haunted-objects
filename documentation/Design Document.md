@@ -103,6 +103,12 @@ numbers came from. The table lives in `detectors/include/DetectorProfiles.h` (12
 leaves headroom for the real alarm count) and is validated at compile time. The values were drawn
 once, at random within each model's range, then fixed; edit them freely.
 
+**Voice versus timing.** A slot's *voice* is its chirp length and chirp frequency, and it is the
+same in every suite. Only *timing* (when chirps happen, and in what pattern) changes from suite to
+suite. The profile's chirp interval is therefore the battery-ambient suite's timing, not part of
+the voice. The conversation and ensemble suites draw their own timing from their recipes and reuse
+each slot's voice unchanged.
+
 What commercial low-battery chirps measure, from the research (chirp length is the horn-drive
 burst from detector chip datasheets, not a measured waveform):
 
@@ -266,6 +272,8 @@ Code, docs, and conversation use these words. A new term is proposed and approve
 | ensemble | An interlude in which the alarms build a rhythmic score together, simple at first, then more complex. |
 | InterludeScheduler | The class that decides when an interlude happens and which kind. |
 | Config | The immutable value object holding every tunable setting, built once and handed to the classes that need it. |
+| voice | A slot's chirp length and chirp frequency. The same in every suite. |
+| timing | When a slot's chirps happen and in what pattern. Varies by suite; the profile's chirp interval is the battery-ambient suite's timing. |
 | slot | The numbered position of a detector, counted from 1. A slot always behaves the same across power-ups. |
 | detector profile | A slot's fixed chirp identity: chirp length, chirp frequency, chirp interval, and the `model` it imitates. |
 | test | A formal check of a class through its public interface, including mutation runs. Lives in `test/`. |
