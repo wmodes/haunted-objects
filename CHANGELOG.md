@@ -24,7 +24,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
 - Design decision: a slot's voice (chirp length and frequency) is the same in every suite; only
-  timing varies by suite. `voice` and `timing` added to the lexicon.
+  timing varies by suite. `voice` and `timing` added to the lexicon. The `chirpIntervalSeconds`
+  field comment now says it is the ambient low-battery interval (timing, not voice).
 - Changed: detector profile chirp frequencies redrawn from 3000-3500 Hz (was 2850-3250 Hz, an
   unsourced guess that sounded too low); lengths, intervals, and models unchanged. Research on
   typical smoke-alarm pitch (about 3100-3200 Hz) recorded in the Design Document.

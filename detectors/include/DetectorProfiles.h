@@ -45,7 +45,11 @@ struct DetectorProfile {
   /** Pitch of the chirp, in hertz. Raising it makes the chirp higher. */
   unsigned chirpFrequencyHertz;
 
-  /** Time between the starts of successive chirps, in seconds. Raising it makes chirps rarer. */
+  /**
+   * Time between the starts of successive chirps in the ambient low-battery suite, in seconds.
+   * Raising it makes chirps rarer. This is timing, not voice: a slot's voice is its chirp length
+   * and chirp frequency, which every suite shares, while each other suite brings its own timing.
+   */
   float chirpIntervalSeconds;
 };
 
