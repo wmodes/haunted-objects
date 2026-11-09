@@ -97,6 +97,10 @@ struct Statistics {
   // The cool two-speaker opening (heat < 0.33), ordinary turns only: the silence the ear hears
   // between one turn's last chirp and the next turn's first.
   std::vector<double> coolPauseSeconds;
+  // One entry per conversation, to check that length is independent of the pace.
+  std::vector<double> durationsSeconds;
+  std::vector<double> meanPauseSecondsPerConversation;
+  std::vector<double> turnsPerConversation;
 };
 
 void accumulate(Statistics& stats, const Conversation& conversation) {
@@ -104,6 +108,8 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
   const double peakTime = conversation.heat.peakTimeSeconds();
   bool previousWasOrdinary = false;
   double previousLogGap = 0.0;
+  double ordinaryGapSum = 0.0;
+  std::size_t ordinaryGapCount = 0;
   for (std::size_t i = 0; i < conversation.turns.size(); ++i) {
     const ConversationTurn& turn = conversation.turns[i];
     ++stats.turns;
@@ -129,6 +135,8 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
       (turn.followsSameSpeaker ? stats.sameSpeakerGapSeconds : stats.speakerChangeGapSeconds)
           .push_back(turn.gapBeforeSeconds);
       stats.ordinaryGapSeconds.push_back(turn.gapBeforeSeconds);
+      ordinaryGapSum += turn.gapBeforeSeconds;
+      ++ordinaryGapCount;
       const double logGap = std::log(turn.gapBeforeSeconds);
       if (previousWasOrdinary) {
         stats.earlierLogGap.push_back(previousLogGap);
@@ -142,6 +150,11 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
       (turn.startSeconds < peakTime ? stats.lapsesBeforePeak : stats.lapsesAfterPeak) += 1;
     }
   }
+
+  stats.durationsSeconds.push_back(conversation.durationSeconds);
+  stats.meanPauseSecondsPerConversation.push_back(
+      ordinaryGapCount > 0 ? ordinaryGapSum / ordinaryGapCount : 0.0);
+  stats.turnsPerConversation.push_back(static_cast<double>(conversation.turns.size()));
 }
 
 void printStatistics(const Statistics& stats) {
@@ -149,6 +162,14 @@ void printStatistics(const Statistics& stats) {
   std::printf("  %zu turns over %zu conversations; two-chirp turns: %.1f%%\n", stats.turns,
               stats.conversations,
               100.0 * stats.doubleChirpTurns / std::max<std::size_t>(stats.turns, 1));
+  std::printf("  conversation length: shortest / median / longest %.0f / %.0f / %.0f s; "
+              "turns per conversation (median) %.0f\n",
+              percentile(stats.durationsSeconds, 0.0), percentile(stats.durationsSeconds, 0.5),
+              percentile(stats.durationsSeconds, 1.0),
+              percentile(stats.turnsPerConversation, 0.5));
+  std::printf("  length vs pace: correlation of length with mean pause %.2f "
+              "(near 0 = a longer conversation has more turns, not slower ones)\n",
+              correlation(stats.durationsSeconds, stats.meanPauseSecondsPerConversation));
   std::printf("  turn start to next turn start: median %.0f ms, quartiles %.0f / %.0f ms\n",
               percentile(stats.spacingSeconds, 0.5) * 1000.0,
               percentile(stats.spacingSeconds, 0.25) * 1000.0,
@@ -219,15 +240,17 @@ int main() {
 
   const ChirpRenderer renderer(config.audio, kDetectorProfiles, kDetectorProfileCount);
   const std::vector<std::int16_t> samples =
-      renderer.render(conversation.chirps, config.durationSeconds);
+      renderer.render(conversation.chirps, conversation.durationSeconds);
 
   if (!WavFileWriter::write(config.audio.outputFilePath, samples, config.audio.sampleRateHertz)) {
     std::fprintf(stderr, "could not write %s\n", config.audio.outputFilePath);
     return 1;
   }
 
-  std::printf("wrote %s: %.1f s, %u Hz, %s wave, seed %u\n\n", config.audio.outputFilePath,
-              config.durationSeconds, config.audio.sampleRateHertz,
+  std::printf("wrote %s: %.1f s (drawn from %.0f-%.0f s), %u Hz, %s wave, seed %u\n\n",
+              config.audio.outputFilePath, conversation.durationSeconds,
+              config.durationSeconds.min, config.durationSeconds.max,
+              config.audio.sampleRateHertz,
               waveformName(config.audio.waveform), config.randomSeed);
 
   std::printf("cast (temperament drawn for this conversation):\n");
@@ -245,7 +268,8 @@ int main() {
   std::printf("\nheat curve: peak %.2f at %.1f s, width %.1f s\n", conversation.heat.peakHeat(),
               conversation.heat.peakTimeSeconds(), conversation.heat.widthSeconds());
   std::printf("%zu turns, %zu chirps\n\n", conversation.turns.size(), conversation.chirps.size());
-  printHeatProfile(conversation, config.durationSeconds, 5.0);
+  // About eighteen rows, whatever the length.
+  printHeatProfile(conversation, conversation.durationSeconds, conversation.durationSeconds / 18.0);
 
   std::printf("\nthis conversation:\n");
   Statistics single;

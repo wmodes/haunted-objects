@@ -247,8 +247,13 @@ struct ConversationConfig {
   /** Second of the two slots in the cast. */
   unsigned secondCastSlot = 2;
 
-  /** Length of the conversation, in seconds. */
-  double durationSeconds = 90.0;
+  /**
+   * Length range of a conversation, in seconds. The length is drawn once, first, before anything
+   * else, and it is independent of the timing between turns: a longer conversation has more
+   * turns at the same pace, not slower ones. The heat curve and the wind-down scale to it. Set
+   * both ends equal to fix the length, for example to compare two models for the same time.
+   */
+  Range durationSeconds{60.0, 240.0};
 
   /**
    * Seed for everything random in the conversation (heat curve, temperaments, speaker order,
@@ -289,7 +294,8 @@ static_assert(kDefaults.secondCastSlot >= 1 && kDefaults.secondCastSlot <= kDete
               "secondCastSlot must be a slot in the profile table");
 static_assert(kDefaults.firstCastSlot != kDefaults.secondCastSlot,
               "the cast needs two different slots");
-static_assert(kDefaults.durationSeconds > 0.0, "durationSeconds must be positive");
+static_assert(isOrdered(kDefaults.durationSeconds) && kDefaults.durationSeconds.min > 0.0,
+              "durationSeconds must be an ordered range above 0");
 static_assert(kDefaults.statisticsConversationCount > 0,
               "statisticsConversationCount must be positive");
 

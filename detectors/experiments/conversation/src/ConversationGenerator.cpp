@@ -74,8 +74,11 @@ Conversation ConversationGenerator::generate() const {
   const TemperamentConfig& temperament = config_.temperament;
   std::mt19937 rng(config_.randomSeed);
 
-  // One generator, consumed in a fixed order, so a seed fixes the whole conversation.
-  HeatCurve heat = HeatCurve::draw(config_.heat, config_.durationSeconds, rng);
+  // One generator, consumed in a fixed order, so a seed fixes the whole conversation. The length
+  // is drawn first, on its own, so it models how long the conversation lasts and nothing about
+  // how quickly the turns come.
+  const double durationSeconds = drawFrom(config_.durationSeconds, rng);
+  HeatCurve heat = HeatCurve::draw(config_.heat, durationSeconds, rng);
 
   std::vector<Participant> cast;
   for (unsigned slot : {config_.firstCastSlot, config_.secondCastSlot}) {
@@ -91,7 +94,7 @@ Conversation ConversationGenerator::generate() const {
   }
   std::discrete_distribution<std::size_t> pickSpeaker(weights.begin(), weights.end());
 
-  Conversation conversation{cast, heat, {}, {}};
+  Conversation conversation{durationSeconds, cast, heat, {}, {}};
 
   // When each cast member's last chirp ended, so a slot never starts a chirp on top of its own.
   std::vector<double> lastChirpEndSeconds(cast.size(),
@@ -115,7 +118,7 @@ Conversation ConversationGenerator::generate() const {
     const double startSeconds = std::max(
         nextStartSeconds,
         lastChirpEndSeconds[speaker] + timing.minSameSlotGapMilliseconds / kMillisecondsPerSecond);
-    if (startSeconds >= config_.durationSeconds) {
+    if (startSeconds >= durationSeconds) {
       break;
     }
     const double heatNow = heat.heatAt(startSeconds);
@@ -136,7 +139,7 @@ Conversation ConversationGenerator::generate() const {
     for (unsigned i = 0; i < chirpCount; ++i) {
       const double chirpStartSeconds =
           startSeconds + i * innerSpacingMilliseconds / kMillisecondsPerSecond;
-      if (chirpStartSeconds >= config_.durationSeconds) {
+      if (chirpStartSeconds >= durationSeconds) {
         break;
       }
       conversation.chirps.push_back({participant.slot, chirpStartSeconds});
@@ -155,7 +158,7 @@ Conversation ConversationGenerator::generate() const {
     // Lapses belong to the wind-down: only after the peak, and more likely the cooler it is.
     const double windDown =
         smoothstep((startSeconds - heat.peakTimeSeconds()) /
-                   std::max(config_.durationSeconds - heat.peakTimeSeconds(), 1e-9));
+                   std::max(durationSeconds - heat.peakTimeSeconds(), 1e-9));
     const double lapseChance = timing.lapseMaxProbability * (1.0 - heatNow) * windDown;
 
     double gapMilliseconds;

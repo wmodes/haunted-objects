@@ -63,6 +63,8 @@ struct Participant {
 };
 
 struct Conversation {
+  /** Length of this conversation, drawn before anything else and independent of the timing. */
+  double durationSeconds;
   std::vector<Participant> cast;
   HeatCurve heat;
   std::vector<ConversationTurn> turns;
