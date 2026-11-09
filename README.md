@@ -1,6 +1,6 @@
 # Haunted Objects
 
-Ordinary objects that behave as if something is wrong with them.
+Ordinary objects that behave as if they are haunted, that is, they are objects that have been embued with agency.
 
 ## Smoke Alarm Piece
 
