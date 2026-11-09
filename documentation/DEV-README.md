@@ -10,8 +10,18 @@ can all be driven from a terminal. Target board: classic ESP32 (`esp32dev`).
 Each haunted object is its own PlatformIO project in its own top-level folder; the smoke alarm
 piece is `detectors/`. Run PlatformIO commands from inside that folder.
 
-Not set up yet. This section will hold the install steps and the build, flash, and monitor
-commands once the project is scaffolded.
+Install (macOS): `brew install platformio`. The project uses the Arduino framework on the
+`esp32dev` board, with the platform version pinned in `platformio.ini`. The first build downloads
+the toolchain.
+
+`detectors/` was scaffolded with:
+
+```
+mkdir detectors
+pio project init --project-dir detectors --board esp32dev --project-option "framework=arduino"
+```
+
+Build, flash, and monitor commands will be added here once there is firmware to run.
 
 ## Secrets
 
