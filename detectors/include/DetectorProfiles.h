@@ -23,9 +23,11 @@
  *
  * Chirp frequency comes from patent test results and a product manual, not from a detector
  * datasheet: typical smoke-alarm horns sit near 3100-3200 Hz (about 3200 Hz +/-10%; one manual
- * states 3.2 +/-0.3 kHz). Frequencies were drawn from 3000-3500 Hz, which keeps that band and
- * trims the low tail that sounded unlikely. Each physical horn has its own sweet spot, so treat
- * these as starting points to tune by ear once the horns are wired.
+ * states 3.2 +/-0.3 kHz; a patent puts typical horn output at 3000-4000 Hz). Frequencies were
+ * drawn at random from 3000-3800 Hz, trimming the low tail that sounded unlikely, with
+ * neighboring slots at least 250 Hz apart so any adjacent pair sounds like two distinct voices,
+ * and no two slots closer than 30 Hz. Each physical horn has its own sweet spot, so treat these
+ * as starting points to tune by ear once the horns are wired.
  */
 #pragma once
 
@@ -58,18 +60,18 @@ struct DetectorProfile {
  * on how many alarms are built (push-pull drive spends two pins per horn).
  */
 inline constexpr DetectorProfile kDetectorProfiles[] = {
-    {1, "A5348-class", 12.0f, 3220, 35.3f},
-    {2, "A5366-class", 11.0f, 3480, 41.6f},
-    {3, "Kidde-style", 11.4f, 3170, 33.0f},
-    {4, "BRK/First-Alert-style", 9.5f, 3230, 57.0f},
+    {1, "A5348-class", 12.0f, 3140, 35.3f},
+    {2, "A5366-class", 11.0f, 3670, 41.6f},
+    {3, "Kidde-style", 11.4f, 3290, 33.0f},
+    {4, "BRK/First-Alert-style", 9.5f, 3010, 57.0f},
     {5, "MC145010-class", 10.3f, 3400, 44.6f},
-    {6, "Kidde-style", 8.8f, 3440, 37.0f},
-    {7, "MC146012?-class", 8.6f, 3060, 29.7f},
-    {8, "BRK/First-Alert-style", 10.5f, 3380, 58.8f},
-    {9, "A5348-class", 10.2f, 3020, 35.0f},
-    {10, "A5366-class", 9.2f, 3240, 41.6f},
-    {11, "MC145010-class", 10.9f, 3070, 39.4f},
-    {12, "MC146012?-class", 8.5f, 3140, 34.4f},
+    {6, "Kidde-style", 8.8f, 3750, 37.0f},
+    {7, "MC146012?-class", 8.6f, 3110, 29.7f},
+    {8, "BRK/First-Alert-style", 10.5f, 3640, 58.8f},
+    {9, "A5348-class", 10.2f, 3320, 35.0f},
+    {10, "A5366-class", 9.2f, 3040, 41.6f},
+    {11, "MC145010-class", 10.9f, 3350, 39.4f},
+    {12, "MC146012?-class", 8.5f, 3780, 34.4f},
 };
 
 /** Number of slots in the table. */
