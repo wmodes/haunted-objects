@@ -177,6 +177,48 @@ throwaway and was not kept, so the seed alone cannot reproduce it. These paramet
   becomes available (the salvaged units no longer work); and judge the final chirp length and
   pitch by ear on the real horns, since each horn's housing resonates and rings.
 
+### Drive waveform (smoke alarm piece)
+
+What waveform commercial alarm horns use, from the research. The sources are datasheets,
+application notes, and patents read through search summaries; no measured spectrum of a real
+smoke alarm was found.
+
+- **Electrical drive is a rectangular (square) wave** from a push-pull output stage. Microchip's
+  horn-driver parts use a push-pull stage
+  ([RE46C100 datasheet](https://datasheet.chipsmall.com/RE46C100S8F/539556.pdf)). A 1983
+  [patent](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/4496914) describes
+  alternating which supply side each horn terminal connects to, to double the voltage swing and
+  reach the roughly 85 dB a smoke alarm needs. That is the same idea as the TB6612FNG push-pull
+  drive in this piece. Some parts allow a non-50% duty cycle.
+- **On a three-terminal piezo the horn sets its own pitch.** The feedback electrode returns to the
+  driver, which flips its output when the feedback crosses half the supply, so the horn's
+  resonance sets the frequency, not the chip
+  ([TI TPS8802 datasheet](https://www.ti.com/document-viewer/TPS8802/datasheet/GUID-CD79A4AA-B021-4E9B-9284-30B5571CA41C),
+  RE46C100). A related NXP [application note](https://www.nxp.com/docs/en/application-note/AN1690.pdf)
+  gives example values for a 3.4 kHz three-lead horn.
+- **A two-terminal drive, which is this piece (the feedback wire is unused), is driven externally.**
+  TI's datasheet says a two-terminal horn can take a square wave at its resonant frequency, a PWM
+  sine, or an arbitrary PWM shape.
+- **The acoustic output is closer to a sine than the electrical drive is.** A bare piezo disc is
+  weak, so it sits in a resonant cavity
+  ([PZT application note](https://www.framboise314.fr/wp-content/uploads/2018/02/PZT_Application_note.pdf)).
+  A vendor frequency scan shows a dominant peak at the fundamental with weaker harmonics, and the
+  vendor says square drive gives more sound level than sine.
+- **Horn pitch examples cluster around 2.8-3.4 kHz** (a 2.8 kHz scan, the 3.4 kHz application-note
+  example, and [SparkFun's 3 kHz unit](https://sparkfun.com/products/13940)). That is consistent
+  with the 2850-3250 Hz range assumed in the profile table, though none of it is specific to smoke
+  alarms.
+- **Sawtooth: no evidence found.** Nothing I read describes a sawtooth drive. A sawtooth would
+  need deliberately shaped (PWM-synthesized) drive; the H-bridge produces a square natively. The
+  piezo and its cavity filter whatever they are given, so a real horn may sound buzzier than a
+  clean square.
+- **Not found:** the MC145010's horn-drive details, the Allegro A5348/A5358 horn drivers, and any
+  measurement of a real smoke alarm's waveform or spectrum.
+
+Open: which waveform sounds right. The chirp-table experiment renders sine, square, and sawtooth
+so they can be compared by ear against how the real alarms sounded; square is the default because
+it matches the research and what the H-bridge produces.
+
 ### Tooling
 
 - PlatformIO via the CLI, not the VS Code extension, with each piece as its own PlatformIO

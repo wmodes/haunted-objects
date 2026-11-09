@@ -23,6 +23,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Design Document: research on the horn drive waveform (square, push-pull; no evidence found for
+  sawtooth) and the open question of which sounds right.
 - Wokwi emulation: the blink experiment runs on a simulated ESP32 via `wokwi-cli`
   (`wokwi.toml`, `diagram.json`), passing on its serial output. The API token lives in the
   gitignored `.env`; `.env.example` is the committed template.
