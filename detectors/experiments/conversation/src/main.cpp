@@ -245,6 +245,12 @@ void printStatistics(const Statistics& stats) {
     std::printf("    %-14s %.2f / %.2f / %.2f\n", kHeatBandNames[band], original, newcomer,
                 original + newcomer);
   }
+  const double secondsInAnyBand =
+      std::max(stats.bandSeconds[0] + stats.bandSeconds[1] + stats.bandSeconds[2], 1e-9);
+  std::printf("  share of the time at each heat:   %.0f%% cold / %.0f%% warm / %.0f%% hot\n",
+              100.0 * stats.bandSeconds[0] / secondsInAnyBand,
+              100.0 * stats.bandSeconds[1] / secondsInAnyBand,
+              100.0 * stats.bandSeconds[2] / secondsInAnyBand);
   const double all = static_cast<double>(std::max<std::size_t>(stats.conversations, 1));
   std::printf("  newcomers present (0/1/2/3):   %2.0f%% / %2.0f%% / %2.0f%% / %2.0f%%\n",
               100.0 * stats.newcomersPresentCount[0] / all,

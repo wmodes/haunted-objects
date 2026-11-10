@@ -35,8 +35,12 @@ enum class Waveform {
  * because conversations open briskly.
  */
 struct HeatConfig {
-  /** How hot the conversation gets at its peak, 0 to 1. Higher is a more heated exchange. */
-  Range peakHeat{0.7, 1.0};
+  /**
+   * How hot the conversation gets at its peak, 0 to 1. Higher is a more heated exchange. The
+   * bottom is above the heat at which the heated pacing and the newcomers reach full strength
+   * (0.8), so every conversation gets properly hot; lowering it allows cooler conversations.
+   */
+  Range peakHeat{0.85, 1.0};
 
   /** Where the peak falls, as a fraction of the conversation's length (0 = start, 1 = end). */
   Range peakTimeFraction{0.35, 0.65};
