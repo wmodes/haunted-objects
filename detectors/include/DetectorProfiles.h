@@ -24,10 +24,12 @@
  * Chirp frequency comes from patent test results and a product manual, not from a detector
  * datasheet: typical smoke-alarm horns sit near 3100-3200 Hz (about 3200 Hz +/-10%; one manual
  * states 3.2 +/-0.3 kHz; a patent puts typical horn output at 3000-4000 Hz). Frequencies were
- * drawn at random from 3000-3800 Hz, trimming the low tail that sounded unlikely, with
- * neighboring slots at least 250 Hz apart so any adjacent pair sounds like two distinct voices,
- * and no two slots closer than 30 Hz. Each physical horn has its own sweet spot, so treat these
- * as starting points to tune by ear once the horns are wired.
+ * drawn at random from 3000-3800 Hz, trimming the low tail that sounded unlikely. Consecutive
+ * slot numbers are at least 250 Hz apart, and no two slots are closer than 30 Hz, but several
+ * non-consecutive pairs are exactly that close (for example slots 1 and 7), so a cast should be
+ * chosen for pitch spread and not assumed distinguishable. Each physical horn has its own
+ * resonant sweet spot and will likely bunch near 3-3.5 kHz, so treat these as starting points to
+ * tune by ear once the horns are wired.
  */
 #pragma once
 

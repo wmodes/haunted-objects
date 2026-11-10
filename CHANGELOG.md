@@ -23,6 +23,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
+- Documentation pass for the conversation experiment: the Design Document now records its final
+  state (timing model, difficulty, jump-ins, length drawn up front, the eight rounds of tuning by
+  ear, and the 300-seed results), the three slot-frequency draws, and the limits of telling slots
+  apart by pitch. Lexicon gains `jump-in` (proposed) and an updated `heat`.
+- Changed: conversation long pauses doubled (hard end only: median 1.8 to 3.6 s, ceiling 2.4 to
+  4.8 s, inner pause 577 to 1154 ms); silences over 1 s go from 13% to 25% in the audio. Confirmed
+  by ear.
+- Changed: slot chirp frequencies redrawn from 3000-3800 Hz (was 3000-3500 Hz) to make the default
+  pair easier to tell apart: slots 1 and 2 are now 3140 and 3670 Hz. Known limit: only consecutive
+  slot numbers are guaranteed 250 Hz apart; six non-consecutive pairs are 30 Hz apart.
+- Changed: conversation jump-ins land 0-35 ms after the other turn starts (was 10-150 ms) so
+  talking over is audible. A try at shrinking every hot pause toward zero was reverted.
+- Changed: conversation length is drawn first, from 60-240 s, independent of the pacing.
 - Changed: conversation timing is now gap-only. A chirp is a turn's whole speech, so the
   "implied utterance" was removed (its heavy tail caused the very long and very short spacings in
   the cool opening) and the silence between chirps is modeled directly: log-normal, median 300 ms
