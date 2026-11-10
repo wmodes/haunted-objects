@@ -127,11 +127,11 @@ NFPA 72 requires the low-battery signal at least once a minute for 7 days
 ([excerpt](https://fsc.ri.gov/media/156/download)), which caps commercial intervals at about 60 s.
 The overall interval range is about 30-60 s.
 
-Chirp frequency is drawn at random from 3000-3800 Hz (see the research notes below). Only
-consecutive slot numbers are guaranteed to be at least 250 Hz apart; any two slots are at least
-30 Hz apart, and six pairs are exactly that close, which sounds like the same voice (see "Limits
-of telling slots apart by pitch"). Tune each horn by ear once the horns are wired. Not sourced,
-so assumed: chirp length for the Kidde and BRK/First Alert models. A 10 ms burst into a resonant
+Chirp frequency is drawn at random from 3000-3800 Hz (see the research notes below). The first
+six slots, which conversations cast from, are at least 120 Hz apart; slots 7-12 are untuned, and
+no two of the 12 are closer than 30 Hz (see "Limits of telling slots apart by pitch"). Tune each
+horn by ear once the horns are wired. Not sourced, so assumed: chirp length for the Kidde and
+BRK/First Alert models. A 10 ms burst into a resonant
 piezo housing probably sounds longer than 10 ms because the housing rings (unverified
 inference); judge by ear on the real horns.
 
@@ -144,10 +144,10 @@ so the result stays comparable:
    six models below, two slots each), shuffled randomly across the slots.
 2. **Draw uniformly within each model's range**, then round: chirp length and chirp interval to
    0.1.
-3. **Draw each chirp frequency uniformly from 3000-3800 Hz**, rounded to the nearest 10 Hz,
-   redrawing it until it differs from the previous slot by at least 250 Hz and from every earlier
-   slot by at least 30 Hz. Frequency does not depend on the model. This protects only
-   consecutive slot numbers, not arbitrary pairs; see the limits below before relying on it.
+3. **Draw each chirp frequency uniformly from 3000-3800 Hz**, rounded to the nearest 10 Hz. The
+   slots a conversation casts from (the first six) are redrawn until each differs from every
+   other among them by at least 120 Hz; any other slot that ends up within 30 Hz of another is
+   nudged by the smallest 10 Hz step that clears it. Frequency does not depend on the model.
 4. **Check the result.** Slots count up from 1, and each interval is longer than its chirp. The
    header's compile-time check enforces this.
 
@@ -162,18 +162,25 @@ Ranges used for the current draw. Ranges marked "assumed" are not from a source:
 | Kidde-style | 8.0-12.0 ms (assumed) | 30.0-40.0 s | interval from Kidde; length from the chip datasheets |
 | BRK/First-Alert-style | 8.0-12.0 ms (assumed) | 55.0-60.0 s | interval from BRK and First Alert, capped at 60 s by NFPA 72; length from the chip datasheets |
 
-Chirp frequency was drawn three times, with the lengths, intervals, and models kept each time:
+Chirp frequency was drawn four times, with the lengths, intervals, and models kept each time:
 
 1. 2850-3250 Hz, an unsourced guess that sounded too low.
 2. 3000-3500 Hz, based on patent test results and a product manual; it "felt pretty spot on".
-3. 3000-3800 Hz with the neighbor rule, because slots 1 and 2, the default conversation pair,
-   were only 260 Hz apart. They are now 3140 and 3670 Hz (530 Hz apart). The current table, for
-   slots 1 to 12: 3140, 3670, 3290, 3010, 3400, 3750, 3110, 3640, 3320, 3040, 3350, 3780 Hz.
+3. 3000-3800 Hz with a rule that consecutive slot numbers differ by 250 Hz, because slots 1 and
+   2, the default conversation pair, were only 260 Hz apart. They became 3140 and 3670 Hz (530 Hz
+   apart). That rule protected only consecutive slot numbers, which says little about a cast
+   drawn from arbitrary slots.
+4. The first six slots were made mutually distinguishable, because the conversation casts its
+   newcomers from slots 3-6: slots 1 and 2 were kept, slots 3-6 were redrawn at random from
+   3000-3800 Hz with each at least 120 Hz from every other among the six, and slots 9, 10, and 12
+   were nudged by 10-30 Hz so that no two of the 12 are closer than 30 Hz. Slots 7-12 stay
+   untuned until individual models are tuned. The current table, for slots 1 to 12: 3140, 3670,
+   3440, 3020, 3320, 3790, 3110, 3640, 3290, 3050, 3350, 3760 Hz.
 
 The lengths and intervals were drawn with Python's `random.Random(20261109)`, the second
-frequency draw with `random.Random(20261111)`, and the third with `random.Random(20261113)`. The
-scripts were throwaways and were not kept, so the seeds alone cannot reproduce the table. These
-parameters can.
+frequency draw with `random.Random(20261111)`, the third with `random.Random(20261113)`, and
+the fourth with `random.Random(20261114)`. The scripts were throwaways and were not kept, so the
+seeds alone cannot reproduce the table. These parameters can.
 
 #### Research notes and caveats
 
@@ -219,21 +226,21 @@ parameters can.
 
 - **The band is narrow.** 3000-3800 Hz is 800 Hz wide, so at 250 Hz spacing it holds at most 4
   voices (3000, 3250, 3500, 3750); six voices at 250 Hz would need 1250 Hz, and 12 slots at any
-  spacing can be at most about 72 Hz apart. In the current table the largest cast with every pair
-  at least 150 Hz apart is 3 slots, and at least 100 Hz apart is 6 slots.
-- **The neighbor rule guards very little.** It keeps consecutive slot numbers 250 Hz or more
-  apart (the smallest gap is 280 Hz), but a conversation casts arbitrary slots. Six pairs sit
-  only 30 Hz apart: slots 1 and 7, 2 and 8, 3 and 9, 4 and 10, 6 and 12, and 9 and 11. A cast
-  that draws one of those pairs gets two voices that sound like the same person. The default
-  pair, slots 1 and 2, is fine (530 Hz apart).
+  spacing can be at most about 72 Hz apart. Six voices fit at 120 Hz, which is what the first six
+  slots use.
+- **The first six are separated; the rest are not.** Slots 1-6 are at least 120 Hz apart, which
+  keeps a conversation's voices distinguishable. Slots 7-12 are untuned: pairs involving them are
+  as close as 30 Hz (for example slots 1 and 7, 2 and 8, and 5 and 11), which sounds like the
+  same voice, so do not cast from them without checking. An earlier rule that kept only
+  consecutive slot numbers 250 Hz apart guarded very little and was replaced.
 - **The real horns will cap this anyway.** Each horn is loudest at its own resonant pitch, and
   those will likely bunch up around 3-3.5 kHz. Driving a horn far off its resonance costs volume
   (medium confidence on how much; not measured).
-- **Proposed handling (awaiting approval).** Do not rely on the table alone. When a conversation
-  draws or recruits slots, prefer ones whose pitch differs most from those already in the cast.
-  Beyond three or four voices, pitch cannot carry identity by itself, so chirp length, temperament
-  (who talks, who is wordy), and timing carry the rest. Once the horns are wired, measure each
-  horn's resonance, set the table from those, and re-check the spread.
+- **Still proposed (awaiting approval).** When casts grow beyond six, prefer recruits whose pitch
+  differs most from those already talking. Beyond three or four voices, pitch cannot carry
+  identity by itself, so chirp length, temperament (who talks, who is wordy), and timing carry
+  the rest. Once the horns are wired, measure each horn's resonance, set the table from those, and
+  re-check the spread.
 
 ### Drive waveform
 
@@ -337,7 +344,7 @@ freeze a schema while it is still changing.
 
 **Status.** Nothing is implemented in the firmware source yet (`detectors/src/` is empty).
 Experiments so far: `chirp-table` (a host-only render of battery-ambient timing, with warmup
-offsets), `conversation` (step 1 of the conversation suite), and `blink` (the toolchain and board
+offsets), `conversation` (steps 1 and 2 of the conversation suite), and `blink` (the toolchain and board
 check). The ensemble suite has not been started.
 
 #### Battery-ambient suite
@@ -364,16 +371,20 @@ The model is a vivid conversation between two people in a café, interesting eno
 people at nearby tables. Each conversation is generated, not scripted, so every one differs. It
 borrows only timing; each slot keeps its own voice. The pieces:
 
-- **Cast.** Each conversation draws a subset of the slots. Not everyone talks; sometimes
-  everyone does. It starts with two.
+- **Cast.** Two **original speakers** (slots 1 and 2) hold the conversation. Up to three
+  **newcomers**, drawn from a pool of other slots (slots 3-6 for now), may pitch in, as people at
+  nearby tables might. Most conversations have one or two newcomers; some have none.
 - **Turn.** One slot's contribution: a chirp, or sometimes two.
-- **Heat.** A value from 0 (cold) to 1 (hot) that follows a bell curve over the conversation: it
-  starts cool, rises to a peak, and cools again. More heat means more talking over, slightly
-  shorter thinking pauses, more two-chirp turns, and (in later steps) a greater chance that idle
-  slots join in. Heat does not slow the opening: conversations open briskly, and what is missing when
-  cool is crowding and overlap, not speed. The curve is drawn fresh each conversation from recipe
-  ranges: peak height, peak time (as a fraction of the length), width, a baseline floor, and a
-  small smoothed wobble.
+- **Heat.** A value from 0 (cold) to 1 (hot) that follows a symmetrical bell curve over the
+  conversation: it starts cool, rises to a peak, and cools again. Heat does not slow the
+  opening: conversations open briskly. As heat builds, the original speakers' pauses stretch and
+  the room gets sparser (see the heated stretch below), newcomers pitch in, and more turns are
+  two chirps. The curve is drawn fresh each conversation: peak height from 0.85 to 1.0, peak
+  time from 35% to 65% of the way through, and width from 12% to 28% of the length, with a fixed
+  baseline floor (0.10) and a small smooth wobble. Because the peak can fall anywhere in that
+  window, one side of the bell can be cut short by the start or end of a given conversation; on
+  average it is even. The behavior is deliberately not symmetrical even though the heat is: the
+  warm-up is light (see Early talk) and the long silences (lapses) come only after the peak.
 - **Talkativeness.** A per-slot trait, drawn fresh each conversation (unlike the fixed voice).
   It decides whether a slot pitches in, and how often it is picked to speak next. The current
   speaker is in the draw, so a chatty slot can speak several turns in a row and a quiet one may
@@ -397,11 +408,33 @@ borrows only timing; each slot keeps its own voice. The pieces:
   > Pretty good, you? A: (long pause to think) Well, decent. I guess. (pause) Are you still
   > working at X? B: (medium pause) Yeah, sorta. A: (short) Sorta? B: (longer pause) Well (pause)
   > part time.
-- **Arc.** Nothing is scripted. As heat rises, idle slots are roped in and side conversations
-  can form among the bystanders; as heat falls, slots drop out until it settles back to two and
-  ends. Then the next suite (usually battery-ambient) takes over. An earlier idea, a fixed arc of
-  two, three, four, the whole room, a split, and back to two, was replaced by this generated one,
-  because a varied, unexpected arc was preferred.
+- **Newcomers.** Slots that are not part of the original conversation, and so are not equal
+  interlocutors. They never take a turn in the original exchange. They only pitch in: a single
+  chirp, either into a silence (clear of both edges, and only into silences of at least 600 ms)
+  or, about a quarter of the time, on top of an original turn. Each has a talkativeness, drawn
+  fresh each conversation, and its chance of pitching in after an original turn is a scaled-down
+  version of it (0.35 x talkativeness) times a heat gate: none below heat 0.35, full strength at
+  0.8. A newcomer pitches in at most once every 2.5 s. A conversation has 0 to 3 newcomers
+  present (weights 10/40/35/15%); a quiet one may never pitch in, so fewer pitch in than are
+  present.
+- **The heated stretch is sparse.** With only two speakers, a fast heated peak leaves no room for
+  anyone else. So as heat builds (ramping in between heat 0.35 and 0.8, so the cool opening is
+  untouched), the original speakers' pauses stretch by up to 2.5x, the pause floor rises from
+  200 ms to 600 ms and the ceiling from 4.8 s to 9 s, and their own jump-ins on each other fall
+  to at most 10%. Their chirp rate falls from about 1.2 a second in the cool opening to 0.5 a
+  second at the peak, and newcomers fill part of the gap.
+- **Early talk is light.** Before the heat peak, while it is still cool, difficulty is capped at
+  0.55, rising to the full range as heat builds and gone after the peak. Without the cap a hard
+  streak could start at the very opening, giving long pauses of 3-5 s there; the cap cut the
+  early long pauses by about 2.4x (95th percentile 3173 to 1348 ms) at the price of a busier
+  opening (0.9 to 1.2 turns a second). After the peak there is no cap, so the wind-down keeps
+  its long pauses.
+- **Arc.** Nothing is scripted. As heat rises, newcomers pitch in; as it falls they stop, and
+  the conversation settles back to the original two and ends. Then the next suite (usually
+  battery-ambient) takes over. An earlier idea, a fixed arc of two, three, four, the whole room,
+  a split into side conversations, and back to two, was replaced by this generated one, because
+  a varied, unexpected arc was preferred. True side conversations among the bystanders are not
+  built; the newcomer model stands in for them (an assumption, pending confirmation).
 - **Duration.** Drawn once, first, from a range (60-240 s in the experiment), before the heat
   curve, the temperaments, or any turn, and independent of the timing between turns: it models
   how long the conversation lasts, not how quickly the chirps come. A longer conversation has more
@@ -445,25 +478,29 @@ very short spacings in the cool opening, with 13% of spacings over 2.5 s.) The m
 
 - a **silence** between chirps, log-normal (mostly near its median, with a tail), whose median
   slides with the difficulty of the turn being answered, from about 300 ms (trivial) to about
-  3.6 s (hard), and is shorter when hot (down to 60% at full heat). Only the long end was
-  lengthened after listening; the short end keeps its snap;
-- **hard bounds** on ordinary silences: never under 200 ms and never over 4.8 s, enforced by
-  redrawing so values do not pile up at the limits. Jump-ins and lapses are exempt;
+  3.6 s (hard), and stretches by up to 2.5x as the conversation heats (the sparse heated
+  stretch). Only the long end was lengthened after listening; the short end keeps its snap;
+- **hard bounds** on ordinary silences: never under 200 ms and never over 4.8 s in the cool
+  opening (600 ms and 9 s at full heat), enforced by redrawing so values do not pile up at the
+  limits. Jump-ins and lapses are exempt;
 - **+140 ms** when the same slot keeps the floor;
 - the **silence inside a two-chirp turn** ("Well... part time"): about 180 ms (easy) to 1.15 s
   (hard);
 - **jump-ins** as their own event. A 10 ms chirp is only heard colliding with another if the two
   start within a few tens of milliseconds, so a jump-in lands 0-35 ms after the other turn
   started. (An earlier 10-150 ms window just sounded quick, not like talking over.) None happen in
-  the cool opening (below heat 0.3); then the chance ramps up to 35% at heat 0.8 and above;
+  the cool opening (below heat 0.3). Between the original speakers the chance ramps up to only
+  10% at full heat, since the heated stretch is sparse; newcomers supply most collisions (a
+  quarter of their pitch-ins);
 - **lapses** only after the heat peak: up to a 12% chance per turn that grows as heat falls and
   the end nears, each lasting 1.5-5 s. The chance is per turn, so longer conversations get more
-  lapses (about 2.5 per conversation); if the wind-down gets too silent, tie the chance to time
+  lapses (about 2 per conversation); if the wind-down gets too silent, tie the chance to time
   instead of to turns.
 
-The cool opening settled at about one turn a second, which is also the pace of human speech; much
-faster than that sounds like ping-pong. (The first aim was 1.5 turns a second; doubling the long
-pauses after listening brought it to 1.0, and that sounded much better.) These numbers are
+The opening runs at about 1.2 turns a second (it was 1.0 before the early-talk cap); human speech
+is about one turn a second, and much faster than that sounds like ping-pong. (The first aim was
+1.5 turns a second; doubling the long pauses after listening brought it to 1.0, and that sounded
+much better.) These numbers are
 starting points to tune by ear. The sourced anchors are the short-pause-with-a-long-tail shape and
 the 140 ms; the difficulty mapping, the bounds, the jump-in chances, and the lapse chances are
 design choices. (I recall that real response delays are longer for harder or less-preferred
@@ -471,13 +508,16 @@ answers, which motivates difficulty, but I have not verified it.)
 
 **Build plan.** One change at a time, each as a host-only experiment you can listen to before
 anything reaches the firmware: (1) two slots with a heat-driven pause feel, (2) heat-driven
-roping in, (3) side conversations, (4) winding down.
+newcomers, (3) side conversations, (4) winding down. Steps 1 and 2 are built. Step 3 is not
+built (the newcomers stand in for it, pending confirmation). Step 4 is covered by falling heat,
+the newcomers dropping out, and the lapses.
 
-**Status.** Step 1 is built as the `conversation` experiment: two slots, the heat bell curve,
-difficulty, the timing model above, a conversation length drawn up front, and per-slot
-talkativeness and wordiness drawn from a seed. It renders a WAV with each slot's voice, prints a
-report, and prints statistics over 300 generated conversations. The WAV was checked against the
-generated score, and the silences were also measured directly from the audio. It was tuned by
+**Status.** Steps 1 and 2 are built as the `conversation` experiment: two original speakers, the
+heat bell curve, difficulty, the timing model above, a conversation length drawn up front,
+per-slot talkativeness and wordiness drawn from a seed, and newcomers who pitch in. It renders a
+WAV with each slot's voice, prints a report, and prints statistics over 300 generated
+conversations; a first command-line argument sets the seed. The WAV is checked against the
+generated score, and the silences are also measured directly from the audio. It was tuned by
 listening, in rounds:
 
 1. The first version scaled the gap with heat and flipped a coin for two-chirp turns: too slow at
@@ -497,34 +537,49 @@ listening, in rounds:
 7. The slot frequencies were redrawn so the two voices are easier to tell apart (see Detector
    profiles); slots 1 and 2, the default pair, went from 260 Hz apart to 530 Hz.
 8. The long pauses were doubled: the hard end only (median 1.8 to 3.6 s, ceiling 2.4 to 4.8 s,
-   inner pause 577 to 1154 ms), with the short end unchanged. "Much, much better." Measured in the
-   audio of the same seed, silences over 1 s went from 13% to 25% and over 2 s from 1% to 8%, with
-   the longest going from 2.5 s to 4.8 s. (An earlier report that long pauses were too short was
-   checked against the audio first: the file did contain them, so the fix was making them longer,
-   not a code bug.)
+   inner pause 577 to 1154 ms), with the short end unchanged. "Much, much better." Measured in
+   the audio of the same seed, silences over 1 s went from 13% to 25% and over 2 s from 1% to 8%,
+   with the longest going from 2.5 s to 4.8 s. (An earlier report that long pauses were too short
+   was checked against the audio first: the file did contain them, so the fix was making them
+   longer, not a code bug.)
+9. The first six voices were made mutually distinguishable (see Detector profiles), because the
+   newcomers are cast from slots 3-6.
+10. The two original speakers had made the heated part too busy for anyone else to contribute,
+    so the heated stretch was made sparse and the newcomers were added.
+11. Early long pauses were two to three times too long by ear, because a hard streak could start
+    at the opening. Difficulty is now capped before the heat peak (see Early talk).
+12. The peak heat range was raised from 0.7-1.0 to 0.85-1.0 after a conversation that peaked at
+    0.70 felt chilly and one at 0.82 felt only just hot.
 
-Measured over 300 conversations of two slots, lengths drawn from 60-240 s (the cool opening is
-where heat is below 0.33, with no jump-ins or lapses):
+Measured over 300 conversations, lengths drawn from 60-240 s (the early part is cool and before
+the heat peak; the cool opening is heat below 0.33, with no jump-ins or lapses):
 
 | Measure | Aim | Result |
 |---|---|---|
-| Two-chirp turns | about 1 in 10 | 8.9% |
-| Conversation length, shortest / median / longest | 60-240 s, drawn up front | 60 / 148 / 240 s; median 161 turns |
-| Length vs pace (correlation of length with mean pause) | about 0 | -0.03 |
-| Cool opening: silence between chirps, min / 5th / median / 95th / max | no outliers, inside the 200 ms to 4.8 s bounds | 200 / 275 / 660 / 2941 / 4781 ms |
-| Cool opening pace | about 1 turn a second | 1.0 turns a second |
-| Ordinary pauses overall, 10th / median / 90th percentile | varied, with a real long end | 302 / 616 / 2054 ms |
-| Pause sizes: under 100 ms / 100-400 / 400-1000 / over 1 s | none too quick | 0% / 25% / 45% / 30% |
-| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.57 |
-| Same-speaker vs speaker-change pause (mean) | same speaker longer | 977 ms vs 858 ms |
-| Jump-ins, cold / warm / hot | none when cool, rising with heat | 0.0% / 6.1% / 15.0% |
-| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 2.47 |
+| Two-chirp turns | about 1 in 10 | 7.3% |
+| Conversation length, shortest / median / longest | 60-240 s, drawn up front | 60 / 148 / 240 s; median 112 turns |
+| Length vs pace (correlation of length with mean pause) | about 0 | 0.02 |
+| Early part: silence between chirps, 50th / 90th / 95th / 99th / max | no long outliers | 571 / 1145 / 1349 / 1804 / 3229 ms |
+| Early part: silences over 2 s / over 3 s | rare | 0.4% / 0.0% |
+| Early part pace | about 1 turn a second | 1.2 turns a second |
+| Original speakers' chirps per second, cold / warm / hot | sparse when hot | 1.16 / 0.89 / 0.48 |
+| Newcomer chirps per second, cold / warm / hot | none when cool | 0.00 / 0.05 / 0.11 |
+| Newcomers present, 0 / 1 / 2 / 3 | few, never more than 3 | 9% / 39% / 37% / 15% |
+| Newcomers who actually pitched in, 0 / 1 / 2 / 3 | fewer than present | 11% / 40% / 35% / 15% |
+| Newcomer pitch-ins per conversation | unlikely to be many | median 6, mean 7.7; 26% on top of a turn |
+| Share of time at each heat, cold / warm / hot | trends high | 37% / 29% / 35% |
+| Ordinary pauses overall, 10th / median / 90th percentile | varied, with a real long end | 370 / 775 / 2601 ms |
+| One pause predicts the next (correlation of log pauses) | above 0 (independent pauses give 0) | 0.67 |
+| Same-speaker vs speaker-change pause (mean) | same speaker longer | 1289 ms vs 1131 ms |
+| Jump-ins between the original speakers, cold / warm / hot | none when cool | 0.0% / 1.3% / 4.3% |
+| Lapses per conversation, before / after the heat peak | wind-down only | 0.00 / 2.16 |
 
 Known quirks. Difficulty is a random walk with no pull toward easy, so it sometimes sits at the
 extremes for several turns (stuck at 1.00); if runs of long stalls feel unnatural, add a pull
 toward easy. In the wind-down the longest silences are mostly the same slot continuing; if that
 sounds like one speaker wandering off, make a lapse more likely to pass the floor to the other
-slot. Whether it feels like a real conversation is judged by ear. Steps 2 to 4 are not started.
+slot. The newcomer pitch-in rate (0.35 x talkativeness) is a guess to tune by ear. Whether it
+feels like a real conversation is judged by ear.
 
 #### Ensemble suite
 
@@ -545,12 +600,11 @@ Not yet designed. What is known:
 - How many alarms (this sets the pin budget: two ESP32 pins per horn)
 - How loud it needs to be in the space
 - The ensemble suite: its design and duration
-- The conversation suite's steps 2 to 4 (roping in, side conversations, winding down), and
-  whether the lapse chance should depend on time instead of on turns
-- How to keep a conversation's voices distinguishable: choose the cast for pitch spread, and/or
-  require a larger pitch difference between all slot pairs in the table (at most about 72 Hz is
-  possible across 12 slots in 3000-3800 Hz), given that real horn resonances will limit pitch
-  anyway
+- The conversation suite: whether true side conversations (step 3) are wanted or the newcomer
+  model is enough; whether the lapse chance should depend on time instead of on turns; and the
+  newcomer pitch-in rate, which is tuned by ear
+- The voices of slots 7-12, tuned when individual models are tuned, and how larger casts keep
+  their voices distinguishable given that real horn resonances will limit pitch
 - The `SuiteScheduler` rename (it replaces `InterludeScheduler`) and the term "succession rules"
 - Which waveform the real horns should get, judged by ear once they are wired
 - When to add JSON5 as the recipe authoring format
@@ -580,9 +634,12 @@ used; terms marked "proposed" are awaiting approval.
 | difficulty | How much thought a turn takes to answer, from 0 (trivial) to 1 (hard). Sets the pause before the reply and the pause inside a two-chirp turn; drifts turn to turn with occasional topic shifts. |
 | lapse | (proposed) A long silence in a conversation. Only likely during the wind-down, as heat falls. |
 | jump-in | (proposed) A turn that starts within a few tens of milliseconds of the previous one, heard as two slots talking over each other. Only happens as heat builds. |
-| cast | The slots taking part in one conversation. |
+| cast | The slots taking part in one conversation: two original speakers plus any newcomers present. |
+| original speaker | One of the two slots that hold a conversation (slots 1 and 2). They take turns. |
+| newcomer | (proposed) A slot that pitches in on a conversation it is not part of, like a person at a nearby table. Never takes a turn; chirps singly into a silence or on top of a turn. |
+| pitch-in | (proposed) One chirp from a newcomer. Its chance is a scaled-down version of the newcomer's talkativeness, gated by heat. |
 | turn | One slot's contribution to a conversation: one chirp, or two. |
-| heat | How lively a conversation is, from 0 to 1, following a bell curve over its length. More heat means more jump-ins and slightly shorter thinking pauses, and (in later steps) more slots joining in. |
+| heat | How lively a conversation is, from 0 to 1, following a bell curve over its length. Heat stretches the original speakers' pauses (a sparse heated stretch) and brings newcomers in; its peak is drawn from 0.85 to 1.0. |
 | talkativeness | A per-slot trait, drawn fresh each conversation, that decides how likely the slot is to pitch in and to speak next. |
 | wordiness | A per-slot trait, drawn fresh each conversation, that decides how likely a turn is two chirps instead of one. |
 | temperament | A slot's talkativeness and wordiness for one conversation. Varies; unlike the fixed voice. |

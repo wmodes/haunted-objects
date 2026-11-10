@@ -23,7 +23,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   length, frequency, and interval, with a `model` recording where the values came from, validated
   at compile time. Design Document records the research behind the ranges; `slot` and
   `detector profile` added to the lexicon.
-- Documentation pass for the conversation experiment: the Design Document now records its final
+- Documentation pass for steps 1 and 2 of the conversation experiment: the Design Document now
+  records newcomers, the sparse heated stretch, the early-talk difficulty cap, the higher heat
+  range, the first-six voice table (fourth frequency draw), and rounds 9-12 of tuning with the
+  final 300-seed results. Lexicon gains `original speaker`, `newcomer` (proposed), and `pitch-in`
+  (proposed). Open questions refreshed; true side conversations (step 3) recorded as an assumption
+  pending confirmation.
+- Changed: peak heat is drawn from 0.85-1.0 (was 0.7-1.0) so every conversation gets properly
+  hot; time at hot heat 28% to 35%.
+- Changed: conversation difficulty is capped at 0.55 before the heat peak (rising as heat builds),
+  cutting early long pauses about 2.4x (95th percentile 3173 to 1348 ms).
+- Added: newcomers (slots 3-6, up to three per conversation) pitch in with a chance scaled from
+  their talkativeness and gated by heat; the heated stretch is sparse (the original speakers'
+  pauses stretch up to 2.5x, ramping in above heat 0.35). The conversation program takes an
+  optional seed argument.
+- Changed: slots 3-6 redrawn so slots 1-6 are at least 120 Hz apart (slots 9, 10, 12 nudged so no
+  two of 12 are closer than 30 Hz): 3140, 3670, 3440, 3020, 3320, 3790 Hz for slots 1-6.
+- Documentation pass for the conversation experiment (earlier state): the Design Document now records its final
   state (timing model, difficulty, jump-ins, length drawn up front, the eight rounds of tuning by
   ear, and the 300-seed results), the three slot-frequency draws, and the limits of telling slots
   apart by pitch. Lexicon gains `jump-in` (proposed) and an updated `heat`.
