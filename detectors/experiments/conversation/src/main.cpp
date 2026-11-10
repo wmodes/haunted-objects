@@ -99,6 +99,8 @@ struct Statistics {
   // The cool two-speaker opening (heat < 0.33), ordinary turns only: the silence the ear hears
   // between one turn's last chirp and the next turn's first.
   std::vector<double> coolPauseSeconds;
+  // The early part: cool and before the heat peak (the wind-down is cool too, but not early).
+  std::vector<double> earlyPauseSeconds;
   // One entry per conversation, to check that length is independent of the pace.
   std::vector<double> durationsSeconds;
   std::vector<double> meanPauseSecondsPerConversation;
@@ -139,6 +141,9 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
       const ConversationTurn& next = conversation.turns[i + 1];
       if (band == 0 && !next.overlapsPrevious && !next.afterLapse) {
         stats.coolPauseSeconds.push_back(next.gapBeforeSeconds);
+        if (turn.startSeconds < peakTime) {
+          stats.earlyPauseSeconds.push_back(next.gapBeforeSeconds);
+        }
       }
     }
 
@@ -288,6 +293,22 @@ void printStatistics(const Statistics& stats) {
               percentile(cool, 0.0) * 1000.0, percentile(cool, 0.05) * 1000.0,
               percentile(cool, 0.50) * 1000.0, percentile(cool, 0.95) * 1000.0,
               percentile(cool, 1.0) * 1000.0);
+  // The early part only: cool and before the heat peak. Long pauses here should stay modest.
+  const std::vector<double>& early = stats.earlyPauseSeconds;
+  std::size_t earlyOver2 = 0;
+  std::size_t earlyOver3 = 0;
+  for (double pause : early) {
+    earlyOver2 += pause > 2.0 ? 1 : 0;
+    earlyOver3 += pause > 3.0 ? 1 : 0;
+  }
+  const double earlyCount = static_cast<double>(std::max<std::size_t>(early.size(), 1));
+  std::printf("  early part (cool and before the heat peak), silence between chirps:\n");
+  std::printf("    50th / 90th / 95th / 99th / max: %.0f / %.0f / %.0f / %.0f / %.0f ms\n",
+              percentile(early, 0.50) * 1000.0, percentile(early, 0.90) * 1000.0,
+              percentile(early, 0.95) * 1000.0, percentile(early, 0.99) * 1000.0,
+              percentile(early, 1.0) * 1000.0);
+  std::printf("    over 2 s: %.1f%%   over 3 s: %.1f%%\n", 100.0 * earlyOver2 / earlyCount,
+              100.0 * earlyOver3 / earlyCount);
   std::printf("    mean %.0f ms, so about %.1f turns per second\n", mean(cool) * 1000.0,
               mean(cool) > 0.0 ? 1.0 / mean(cool) : 0.0);
 }

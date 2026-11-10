@@ -52,15 +52,18 @@ double smoothstep(double x) {
 }
 
 /**
- * How hard the next turn is to answer, given how hard the one before it was. Usually a small
- * drift from the previous level; now and then a topic shift to a fresh level, biased toward easy.
+ * How hard the next turn is to answer, given how hard the one before it was, and never harder than
+ * `cap`. Usually a small drift from the previous level; now and then a topic shift to a fresh
+ * level, biased toward easy and spread over the range the cap allows.
  */
-double drawDifficulty(const DifficultyConfig& config, double previous, std::mt19937& rng) {
+double drawDifficulty(const DifficultyConfig& config, double previous, double cap,
+                      std::mt19937& rng) {
   if (std::bernoulli_distribution(config.topicShiftProbability)(rng)) {
-    return std::pow(std::uniform_real_distribution<double>(0.0, 1.0)(rng), config.topicShiftSkew);
+    return cap *
+           std::pow(std::uniform_real_distribution<double>(0.0, 1.0)(rng), config.topicShiftSkew);
   }
   return std::clamp(previous + std::normal_distribution<double>(0.0, config.driftSpread)(rng),
-                    0.0, 1.0);
+                    0.0, cap);
 }
 
 }  // namespace
@@ -123,6 +126,10 @@ Conversation ConversationGenerator::generate() const {
     }
     const double heatNow = heat.heatAt(startSeconds);
 
+    // How far into the heated pacing the conversation is: 0 in the cool opening, 1 at full heat.
+    const double heated = smoothstep((heatNow - timing.heatedStartHeat) /
+                                     (timing.heatedFullHeat - timing.heatedStartHeat));
+
     // A turn is one chirp, or rarely two: someone adding on to what they just said. The chance
     // grows with heat and with the slot's wordiness.
     const double doubleChance =
@@ -148,8 +155,13 @@ Conversation ConversationGenerator::generate() const {
     // The silence before the next turn is counted from this turn's last chirp.
     const double lastChirpOffsetMilliseconds = (chirpCount == 2) ? innerSpacingMilliseconds : 0.0;
 
-    // How hard this turn is to answer. It sets the pause before the reply.
-    const double difficulty = drawDifficulty(config_.difficulty, demand, rng);
+    // How hard this turn is to answer. It sets the pause before the reply. Early talk is light:
+    // before the heat peak the hardest topics wait until heat builds. After the peak there is no
+    // cap, so the wind-down keeps its long pauses.
+    const bool beforePeak = startSeconds < heat.peakTimeSeconds();
+    const double difficultyCap =
+        beforePeak ? blend(config_.difficulty.coolMaxDifficulty, 1.0, heated) : 1.0;
+    const double difficulty = drawDifficulty(config_.difficulty, demand, difficultyCap, rng);
 
     // Who speaks next, and how they come in.
     const std::size_t nextSpeaker = pickSpeaker(rng);
@@ -185,8 +197,6 @@ Conversation ConversationGenerator::generate() const {
       // little shorter when heated. A slot keeping the floor takes longer, as if still thinking.
       // It is redrawn until it falls inside the hard bounds, so there are no outliers.
       // The heated pacing ramps in only as heat builds, so the cool opening is untouched.
-      const double heated = smoothstep((heatNow - timing.heatedStartHeat) /
-                                       (timing.heatedFullHeat - timing.heatedStartHeat));
       const double medianMilliseconds =
           blendLog(timing.easyGapMedianMilliseconds, timing.hardGapMedianMilliseconds, difficulty) *
           blend(1.0, timing.hotThinkingScale, heated);

@@ -73,6 +73,14 @@ struct DifficultyConfig {
   /** Difficulty of what the first turn answers, 0 to 1. Low means the opening is small talk. */
   double openingDifficulty = 0.1;
 
+  /**
+   * The hardest a turn can be early in the conversation, 0 to 1: before the heat peak and while
+   * it is still cool, talk stays light and the thinking pauses stay short. The cap rises to 1 as
+   * heat builds (over the same heat range as the heated pacing) and is gone after the peak, so
+   * the long pauses of the wind-down are untouched. Lower makes the early pauses shorter.
+   */
+  double coolMaxDifficulty = 0.55;
+
   /** Chance, per turn, of a topic shift: difficulty jumps to a fresh level, 0 to 1. */
   double topicShiftProbability = 0.3;
 
@@ -413,6 +421,9 @@ static_assert(isProbability(kDefaults.difficulty.openingDifficulty),
               "openingDifficulty must be within 0..1");
 static_assert(isProbability(kDefaults.difficulty.topicShiftProbability),
               "topicShiftProbability must be within 0..1");
+static_assert(isProbability(kDefaults.difficulty.coolMaxDifficulty) &&
+                  kDefaults.difficulty.coolMaxDifficulty > 0.0,
+              "coolMaxDifficulty must be within (0, 1]");
 static_assert(kDefaults.difficulty.topicShiftSkew > 0.0, "topicShiftSkew must be above 0");
 static_assert(kDefaults.difficulty.driftSpread >= 0.0, "driftSpread must not be negative");
 
