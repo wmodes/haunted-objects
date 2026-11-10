@@ -83,7 +83,7 @@ Conversation ConversationGenerator::generate() const {
   std::vector<Participant> cast;
   for (unsigned slot : {config_.firstCastSlot, config_.secondCastSlot}) {
     cast.push_back({slot, drawFrom(config_.temperament.talkativeness, rng),
-                    drawFrom(config_.temperament.wordiness, rng)});
+                    drawFrom(config_.temperament.wordiness, rng), true});
   }
 
   // Talkativeness is a relative weight: the next speaker is drawn in proportion to it. The
@@ -94,7 +94,7 @@ Conversation ConversationGenerator::generate() const {
   }
   std::discrete_distribution<std::size_t> pickSpeaker(weights.begin(), weights.end());
 
-  Conversation conversation{durationSeconds, cast, heat, {}, {}};
+  Conversation conversation{durationSeconds, cast, heat, {}, {}, {}};
 
   // When each cast member's last chirp ended, so a slot never starts a chirp on top of its own.
   std::vector<double> lastChirpEndSeconds(cast.size(),
@@ -184,24 +184,28 @@ Conversation ConversationGenerator::generate() const {
       // An ordinary silence: short for something easy, long for something hard to answer, and a
       // little shorter when heated. A slot keeping the floor takes longer, as if still thinking.
       // It is redrawn until it falls inside the hard bounds, so there are no outliers.
+      // The heated pacing ramps in only as heat builds, so the cool opening is untouched.
+      const double heated = smoothstep((heatNow - timing.heatedStartHeat) /
+                                       (timing.heatedFullHeat - timing.heatedStartHeat));
       const double medianMilliseconds =
           blendLog(timing.easyGapMedianMilliseconds, timing.hardGapMedianMilliseconds, difficulty) *
-          blend(1.0, timing.hotThinkingScale, heatNow);
+          blend(1.0, timing.hotThinkingScale, heated);
       const double extraMilliseconds =
           sameSpeakerNext ? timing.sameSpeakerExtraPauseMilliseconds : 0.0;
-      // The floor slides down with heat, so a heated exchange can run almost together.
+      // Both bounds slide with heat: the heated stretch is sparse, so its floor is higher and its
+      // ceiling is higher too, leaving room for newcomers to pitch in.
       const double floorMilliseconds = blend(timing.minOrdinaryGapMilliseconds,
-                                             timing.hotMinOrdinaryGapMilliseconds, heatNow);
+                                             timing.hotMinOrdinaryGapMilliseconds, heated);
+      const double ceilingMilliseconds = blend(timing.maxOrdinaryGapMilliseconds,
+                                               timing.hotMaxOrdinaryGapMilliseconds, heated);
       gapMilliseconds = 0.0;
       for (int attempt = 0; attempt < kBoundedDrawAttempts; ++attempt) {
         gapMilliseconds = drawSkewed(medianMilliseconds, timing.gapSpread, rng) + extraMilliseconds;
-        if (gapMilliseconds >= floorMilliseconds &&
-            gapMilliseconds <= timing.maxOrdinaryGapMilliseconds) {
+        if (gapMilliseconds >= floorMilliseconds && gapMilliseconds <= ceilingMilliseconds) {
           break;
         }
       }
-      gapMilliseconds =
-          std::clamp(gapMilliseconds, floorMilliseconds, timing.maxOrdinaryGapMilliseconds);
+      gapMilliseconds = std::clamp(gapMilliseconds, floorMilliseconds, ceilingMilliseconds);
       intervalMilliseconds = lastChirpOffsetMilliseconds + gapMilliseconds;
     }
 
@@ -211,7 +215,8 @@ Conversation ConversationGenerator::generate() const {
 
     conversation.turns.push_back({participant.slot, startSeconds, chirpCount, heatNow, difficulty,
                                   demand, intervalSeconds, gapBeforeSeconds, followsSameSpeaker,
-                                  overlapsPrevious, afterLapse});
+                                  overlapsPrevious, afterLapse,
+                                  lastChirpOffsetMilliseconds / kMillisecondsPerSecond});
 
     // Set up the next turn.
     gapBeforeSeconds = gapMilliseconds / kMillisecondsPerSecond;
@@ -226,6 +231,82 @@ Conversation ConversationGenerator::generate() const {
   // The last turn has no successor inside the conversation.
   if (!conversation.turns.empty()) {
     conversation.turns.back().intervalToNextSeconds = 0.0;
+  }
+
+  // Newcomers: other slots that pitch in on a conversation they are not part of. Drawn after the
+  // original exchange so the original speakers' turns do not depend on them.
+  const NewcomerConfig& newcomers = config_.newcomers;
+  std::vector<unsigned> pool;
+  for (unsigned slot = newcomers.poolFirstSlot; slot <= newcomers.poolLastSlot; ++slot) {
+    pool.push_back(slot);
+  }
+  std::discrete_distribution<std::size_t> pickCount(std::begin(newcomers.countWeights),
+                                                    std::end(newcomers.countWeights));
+  const std::size_t newcomerCount = std::min(pickCount(rng), pool.size());
+  std::shuffle(pool.begin(), pool.end(), rng);
+
+  std::vector<Participant> newcomerCast;
+  for (std::size_t i = 0; i < newcomerCount; ++i) {
+    // A newcomer has a talkativeness like anyone else; it scales its chance of pitching in.
+    newcomerCast.push_back({pool[i], drawFrom(temperament.talkativeness, rng), 0.0, false});
+  }
+  for (const Participant& newcomer : newcomerCast) {
+    conversation.cast.push_back(newcomer);
+  }
+
+  std::vector<double> lastPitchInSeconds(newcomerCast.size(),
+                                         -std::numeric_limits<double>::infinity());
+  for (std::size_t i = 0; i < conversation.turns.size(); ++i) {
+    const ConversationTurn& turn = conversation.turns[i];
+
+    // Nearby tables join as the conversation gets vivid, and drift off as it cools.
+    const double heatGate = smoothstep((turn.heat - newcomers.startHeat) /
+                                       (newcomers.fullHeat - newcomers.startHeat));
+    if (heatGate <= 0.0) {
+      continue;
+    }
+
+    // The silence after this turn's last chirp, until the next original turn begins.
+    const double silenceStartSeconds = turn.startSeconds + turn.lastChirpOffsetSeconds;
+    const double silenceEndSeconds = (i + 1 < conversation.turns.size())
+                                         ? conversation.turns[i + 1].startSeconds
+                                         : durationSeconds;
+
+    for (std::size_t n = 0; n < newcomerCast.size(); ++n) {
+      const Participant& newcomer = newcomerCast[n];
+
+      // The chance to pitch in is a scaled version of the newcomer's talkativeness.
+      const double chance = newcomers.pitchInScale * newcomer.talkativeness * heatGate;
+      if (!std::bernoulli_distribution(chance)(rng)) {
+        continue;
+      }
+
+      double startSeconds;
+      bool jumpedIn = false;
+      if (std::bernoulli_distribution(newcomers.jumpInProbability)(rng)) {
+        // Over the original turn: a collision.
+        jumpedIn = true;
+        startSeconds = turn.startSeconds +
+                       drawFrom(timing.overlapOnsetMilliseconds, rng) / kMillisecondsPerSecond;
+      } else {
+        // Into the silence, clear of both edges. Silences too short for that are skipped.
+        const double silenceMilliseconds =
+            (silenceEndSeconds - silenceStartSeconds) * kMillisecondsPerSecond;
+        if (silenceMilliseconds < newcomers.minSilenceMilliseconds) {
+          continue;
+        }
+        const double margin = newcomers.edgeMarginMilliseconds / kMillisecondsPerSecond;
+        startSeconds = drawFrom({silenceStartSeconds + margin, silenceEndSeconds - margin}, rng);
+      }
+
+      if (startSeconds >= durationSeconds ||
+          startSeconds - lastPitchInSeconds[n] < newcomers.minSpacingSeconds) {
+        continue;
+      }
+      lastPitchInSeconds[n] = startSeconds;
+      conversation.interjections.push_back({newcomer.slot, startSeconds, jumpedIn});
+      conversation.chirps.push_back({newcomer.slot, startSeconds});
+    }
   }
   return conversation;
 }

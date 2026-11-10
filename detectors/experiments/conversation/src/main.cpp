@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include "ChirpRenderer.h"
@@ -102,6 +103,16 @@ struct Statistics {
   std::vector<double> durationsSeconds;
   std::vector<double> meanPauseSecondsPerConversation;
   std::vector<double> turnsPerConversation;
+  // Newcomers: how many are present, how many actually pitch in, and how often.
+  std::size_t newcomersPresentCount[4] = {0, 0, 0, 0};  // conversations with k newcomers present
+  std::size_t newcomersPitchedCount[4] = {0, 0, 0, 0};  // ... in which k of them pitched in
+  std::vector<double> pitchInsPerConversation;
+  std::size_t pitchIns = 0;
+  std::size_t pitchInJumpIns = 0;
+  // Chirp density by heat: seconds spent in each band, and chirps heard in it.
+  double bandSeconds[kHeatBands] = {0.0, 0.0, 0.0};
+  double bandOriginalChirps[kHeatBands] = {0.0, 0.0, 0.0};
+  double bandNewcomerChirps[kHeatBands] = {0.0, 0.0, 0.0};
 };
 
 void accumulate(Statistics& stats, const Conversation& conversation) {
@@ -119,6 +130,7 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
     const int band = heatBand(turn.heat);
     ++stats.bandTurns[band];
     stats.bandOverlaps[band] += turn.overlapsPrevious ? 1 : 0;
+    stats.bandOriginalChirps[band] += turn.chirpCount;
 
     if (i + 1 < conversation.turns.size()) {  // the final turn has no successor
       stats.spacingSeconds.push_back(turn.intervalToNextSeconds);
@@ -157,6 +169,30 @@ void accumulate(Statistics& stats, const Conversation& conversation) {
   stats.meanPauseSecondsPerConversation.push_back(
       ordinaryGapCount > 0 ? ordinaryGapSum / ordinaryGapCount : 0.0);
   stats.turnsPerConversation.push_back(static_cast<double>(conversation.turns.size()));
+
+  // Time spent in each heat band, sampled every tenth of a second.
+  constexpr double kSampleSeconds = 0.1;
+  for (double t = 0.0; t < conversation.durationSeconds; t += kSampleSeconds) {
+    stats.bandSeconds[heatBand(conversation.heat.heatAt(t))] += kSampleSeconds;
+  }
+
+  // Newcomers: present, pitched in, and where their chirps fall.
+  std::size_t present = 0;
+  std::vector<unsigned> pitchedSlots;
+  for (const Participant& participant : conversation.cast) {
+    present += participant.isOriginal ? 0 : 1;
+  }
+  for (const Interjection& pitchIn : conversation.interjections) {
+    ++stats.pitchIns;
+    stats.pitchInJumpIns += pitchIn.jumpedIn ? 1 : 0;
+    stats.bandNewcomerChirps[heatBand(conversation.heat.heatAt(pitchIn.startSeconds))] += 1.0;
+    if (std::find(pitchedSlots.begin(), pitchedSlots.end(), pitchIn.slot) == pitchedSlots.end()) {
+      pitchedSlots.push_back(pitchIn.slot);
+    }
+  }
+  ++stats.newcomersPresentCount[std::min<std::size_t>(present, 3)];
+  ++stats.newcomersPitchedCount[std::min<std::size_t>(pitchedSlots.size(), 3)];
+  stats.pitchInsPerConversation.push_back(static_cast<double>(conversation.interjections.size()));
 }
 
 void printStatistics(const Statistics& stats) {
@@ -193,6 +229,32 @@ void printStatistics(const Statistics& stats) {
                 100.0 * stats.bandOverlaps[band] / std::max<std::size_t>(stats.bandTurns[band], 1),
                 100.0 * under100 / ordinary, 100.0 * under30 / ordinary);
   }
+
+  // How dense each heat band is, and who fills it: the heated stretch should be sparse for the
+  // two original speakers, with room for newcomers.
+  std::printf("  chirps per second by heat:   original speakers / newcomers / everyone\n");
+  for (int band = 0; band < kHeatBands; ++band) {
+    const double seconds = std::max(stats.bandSeconds[band], 1e-9);
+    const double original = stats.bandOriginalChirps[band] / seconds;
+    const double newcomer = stats.bandNewcomerChirps[band] / seconds;
+    std::printf("    %-14s %.2f / %.2f / %.2f\n", kHeatBandNames[band], original, newcomer,
+                original + newcomer);
+  }
+  const double all = static_cast<double>(std::max<std::size_t>(stats.conversations, 1));
+  std::printf("  newcomers present (0/1/2/3):   %2.0f%% / %2.0f%% / %2.0f%% / %2.0f%%\n",
+              100.0 * stats.newcomersPresentCount[0] / all,
+              100.0 * stats.newcomersPresentCount[1] / all,
+              100.0 * stats.newcomersPresentCount[2] / all,
+              100.0 * stats.newcomersPresentCount[3] / all);
+  std::printf("  newcomers who pitched in (0/1/2/3): %2.0f%% / %2.0f%% / %2.0f%% / %2.0f%%\n",
+              100.0 * stats.newcomersPitchedCount[0] / all,
+              100.0 * stats.newcomersPitchedCount[1] / all,
+              100.0 * stats.newcomersPitchedCount[2] / all,
+              100.0 * stats.newcomersPitchedCount[3] / all);
+  std::printf("  newcomer pitch-ins per conversation: median %.0f, mean %.1f; landing on top of "
+              "a turn: %.0f%%\n",
+              percentile(stats.pitchInsPerConversation, 0.5), mean(stats.pitchInsPerConversation),
+              100.0 * stats.pitchInJumpIns / std::max<std::size_t>(stats.pitchIns, 1));
 
   // The rhythm of the pauses: how varied they are, and whether they come in streaks.
   const double p10 = percentile(stats.ordinaryGapSeconds, 0.10) * 1000.0;
@@ -243,9 +305,13 @@ void printHeatProfile(const Conversation& conversation, double durationSeconds,
 
 }  // namespace
 
-int main() {
-  // Built once, then handed to the parts that need it.
-  constexpr ConversationConfig config;
+int main(int argc, char** argv) {
+  // Built once, then handed to the parts that need it. An optional first argument overrides the
+  // seed, to hear a different conversation without rebuilding.
+  ConversationConfig config;
+  if (argc > 1) {
+    config.randomSeed = static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10));
+  }
 
   const ConversationGenerator generator(config, kDetectorProfiles);
   const Conversation conversation = generator.generate();
@@ -268,13 +334,25 @@ int main() {
   std::printf("cast (temperament drawn for this conversation):\n");
   for (const Participant& participant : conversation.cast) {
     const DetectorProfile& profile = kDetectorProfiles[participant.slot - 1];
-    int turns = 0;
-    for (const ConversationTurn& turn : conversation.turns) {
-      turns += (turn.slot == participant.slot) ? 1 : 0;
+    if (participant.isOriginal) {
+      int turns = 0;
+      for (const ConversationTurn& turn : conversation.turns) {
+        turns += (turn.slot == participant.slot) ? 1 : 0;
+      }
+      std::printf("  slot %2u  %4u Hz %5.1f ms  original speaker  talkativeness %.2f  "
+                  "wordiness %.2f  -> %d turns\n",
+                  participant.slot, profile.chirpFrequencyHertz, profile.chirpLengthMilliseconds,
+                  participant.talkativeness, participant.wordiness, turns);
+    } else {
+      int pitchIns = 0;
+      for (const Interjection& pitchIn : conversation.interjections) {
+        pitchIns += (pitchIn.slot == participant.slot) ? 1 : 0;
+      }
+      std::printf("  slot %2u  %4u Hz %5.1f ms  newcomer          talkativeness %.2f  "
+                  "-> %d pitch-ins\n",
+                  participant.slot, profile.chirpFrequencyHertz, profile.chirpLengthMilliseconds,
+                  participant.talkativeness, pitchIns);
     }
-    std::printf("  slot %2u  %4u Hz %5.1f ms  talkativeness %.2f  wordiness %.2f  -> %d turns\n",
-                participant.slot, profile.chirpFrequencyHertz, profile.chirpLengthMilliseconds,
-                participant.talkativeness, participant.wordiness, turns);
   }
 
   std::printf("\nheat curve: peak %.2f at %.1f s, width %.1f s\n", conversation.heat.peakHeat(),
@@ -322,6 +400,15 @@ int main() {
                 turn.difficulty, turn.gapBeforeSeconds * 1000.0,
                 turn.followsSameSpeaker ? "  (same speaker)" : "",
                 turn.overlapsPrevious ? "  (talking over)" : "");
+  }
+
+  std::printf("\nnewcomer pitch-ins in this conversation (time, slot, where it landed):\n");
+  for (const Interjection& pitchIn : conversation.interjections) {
+    std::printf("  %7.2f s  slot %2u  %s\n", pitchIn.startSeconds, pitchIn.slot,
+                pitchIn.jumpedIn ? "on top of a turn" : "in a silence");
+  }
+  if (conversation.interjections.empty()) {
+    std::printf("  none\n");
   }
 
   // The same model over many seeds, to see its averages and not one run's luck.

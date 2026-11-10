@@ -7,7 +7,8 @@
  * length and pitch) is applied later, from the detector profile table, by whatever plays the
  * score.
  *
- * Step 1 of the conversation suite: a fixed cast of two slots. A chirp is a turn's whole speech,
+ * Two original speakers hold the conversation; up to three newcomers (other slots) may pitch in,
+ * as people at nearby tables might, without joining the turn-taking. A chirp is a turn's whole speech,
  * so the only timing is the silence between chirps: skewed, bounded, and sized by how hard the
  * previous turn was to answer. Heat drives jump-ins (none in the cool opening) and shortens
  * thinking pauses a little, same-speaker continuations pause longer, and lapses (long silences)
@@ -53,6 +54,8 @@ struct ConversationTurn {
   bool overlapsPrevious;
   /** True if this turn came after a lapse, a long silence. */
   bool afterLapse;
+  /** Time from this turn's start to its last chirp, in seconds (0 for a one-chirp turn). */
+  double lastChirpOffsetSeconds;
 };
 
 /** A slot's traits for one conversation. Drawn fresh each time, unlike the fixed voice. */
@@ -60,15 +63,31 @@ struct Participant {
   unsigned slot;
   double talkativeness;
   double wordiness;
+  /** True for the two speakers who hold the conversation; false for a newcomer pitching in. */
+  bool isOriginal;
+};
+
+/**
+ * One chirp a newcomer pitched in. Newcomers never take a turn in the original exchange; they
+ * chirp into a silence or, occasionally, on top of an original turn.
+ */
+struct Interjection {
+  unsigned slot;
+  double startSeconds;
+  /** True if it landed on top of an original turn (a collision), false if in a silence. */
+  bool jumpedIn;
 };
 
 struct Conversation {
   /** Length of this conversation, drawn before anything else and independent of the timing. */
   double durationSeconds;
+  /** The two original speakers first, then any newcomers present in this conversation. */
   std::vector<Participant> cast;
   HeatCurve heat;
+  /** The original speakers' turns only; newcomers' chirps are in `interjections`. */
   std::vector<ConversationTurn> turns;
-  /** Every chirp of every turn, in the order they were placed. */
+  std::vector<Interjection> interjections;
+  /** Every chirp of every turn and every interjection, in the order they were placed. */
   std::vector<ChirpEvent> chirps;
 };
 

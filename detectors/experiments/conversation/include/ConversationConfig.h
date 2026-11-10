@@ -107,11 +107,23 @@ struct TimingConfig {
   double gapSpread = 0.3;
 
   /**
-   * Factor applied to thinking pauses at full heat; 1 means heat does not shorten them, and below
-   * 1 makes heated people answer faster. Interpolated by heat. Small values push a heated
-   * exchange's pauses right down toward zero, so chirps run almost together.
+   * Heat below which the heated stretch's pacing has no effect at all, 0 to 1. Keeps the cool
+   * opening exactly as it is; the sparser pacing below only ramps in as heat builds.
    */
-  double hotThinkingScale = 0.6;
+  double heatedStartHeat = 0.35;
+
+  /**
+   * Heat at which the heated stretch's pacing reaches full strength, 0 to 1 (above
+   * heatedStartHeat). The settings below ramp smoothly between the two.
+   */
+  double heatedFullHeat = 0.8;
+
+  /**
+   * Factor applied to the two original speakers' pauses at full strength of the heated pacing.
+   * Above 1 makes the heated stretch sparser, which leaves room for others to pitch in; 1 means no
+   * change; below 1 makes heated people answer faster.
+   */
+  double hotThinkingScale = 2.5;
 
   /**
    * Extra silence when the same slot keeps the floor instead of passing it, in milliseconds. A
@@ -122,21 +134,30 @@ struct TimingConfig {
   /**
    * The shortest silence between ordinary turns when the conversation is cool, in milliseconds. A
    * hard floor: no ordinary pause is quicker. Jump-ins are exempt, because they are meant to
-   * crowd. The floor slides down to the hot value below as heat rises.
+   * crowd. The floor slides to the hot value below as heat rises.
    */
   double minOrdinaryGapMilliseconds = 200.0;
 
   /**
-   * The shortest silence between ordinary turns at full heat, in milliseconds. Lower than the cool
-   * floor, so a heated exchange can run almost together. Must not exceed the cool floor.
+   * The shortest silence between ordinary turns at full strength of the heated pacing, in
+   * milliseconds. Higher than the cool floor, so the two original speakers never rattle off quick
+   * replies in the heated stretch.
    */
-  double hotMinOrdinaryGapMilliseconds = 200.0;
+  double hotMinOrdinaryGapMilliseconds = 600.0;
 
   /**
    * The longest silence between ordinary turns, in milliseconds. A hard ceiling: no ordinary
    * pause is longer. Lapses are exempt, because they are meant to be long.
    */
   double maxOrdinaryGapMilliseconds = 4800.0;
+
+  /**
+   * The longest silence between ordinary turns at full strength of the heated pacing, in
+   * milliseconds. The ceiling slides between the cool value above and this one; it is higher
+   * because the heated stretch's pauses are stretched, and a lower ceiling would crush them
+   * against it.
+   */
+  double hotMaxOrdinaryGapMilliseconds = 9000.0;
 
   /**
    * Heat below which nobody jumps in, 0 to 1. Keeps the cool opening orderly: talking over only
@@ -150,8 +171,11 @@ struct TimingConfig {
    */
   double overlapFullHeat = 0.8;
 
-  /** Chance that the next speaker jumps in on top of the current one, at full heat, 0 to 1. */
-  double hotOverlapProbability = 0.35;
+  /**
+   * Chance that the other original speaker jumps in on top of the current one, at full heat, 0 to
+   * 1. Low, because the heated stretch is sparse; newcomers' jump-ins are set separately.
+   */
+  double hotOverlapProbability = 0.10;
 
   /**
    * When a speaker jumps in, how soon after the other's turn started it lands, in milliseconds.
@@ -196,6 +220,55 @@ struct TimingConfig {
    * horn cannot start a new chirp on top of its own.
    */
   double minSameSlotGapMilliseconds = 25.0;
+};
+
+/**
+ * Newcomers are other slots that pitch in on a conversation they are not part of, like people at
+ * nearby tables. They are not equal interlocutors: they never take a turn in the original
+ * speakers' exchange, they only chirp into the silences (or occasionally over a turn), and their
+ * chirps are single. Few pitch in: a conversation has up to three, and each one's chance of
+ * pitching in is a scaled-down version of its talkativeness.
+ */
+struct NewcomerConfig {
+  /** First slot a newcomer may be drawn from. Must not be one of the two original speakers. */
+  unsigned poolFirstSlot = 3;
+
+  /** Last slot a newcomer may be drawn from. */
+  unsigned poolLastSlot = 6;
+
+  /**
+   * Relative chance that a conversation has 0, 1, 2, or 3 newcomers present (the weights need not
+   * sum to 1). Few is likelier than many; more than three never pitch in.
+   */
+  double countWeights[4] = {0.10, 0.40, 0.35, 0.15};
+
+  /**
+   * How a newcomer's talkativeness is scaled into its chance of pitching in after an original
+   * turn: chance = pitchInScale x talkativeness x the heat gate below. Raising it makes newcomers
+   * pitch in more often; small values keep them rare.
+   */
+  double pitchInScale = 0.35;
+
+  /** Heat below which no newcomer pitches in, 0 to 1. Nearby tables join as it gets vivid. */
+  double startHeat = 0.35;
+
+  /** Heat at which the heat gate reaches full strength, 0 to 1 (above startHeat). */
+  double fullHeat = 0.8;
+
+  /**
+   * Chance that a pitch-in lands on top of an original turn (a collision) instead of in the silence
+   * after it, 0 to 1.
+   */
+  double jumpInProbability = 0.25;
+
+  /** The least time between one newcomer's pitch-ins, in seconds. Stops a newcomer machine-gunning. */
+  double minSpacingSeconds = 2.5;
+
+  /** The shortest silence a newcomer will pitch into, in milliseconds. Shorter ones are skipped. */
+  double minSilenceMilliseconds = 600.0;
+
+  /** How far from either edge of a silence a newcomer's chirp lands, in milliseconds. */
+  double edgeMarginMilliseconds = 250.0;
 };
 
 /** Ranges the per-slot temperament is drawn from, fresh for each conversation. */
@@ -280,6 +353,7 @@ struct ConversationConfig {
   DifficultyConfig difficulty;
   TimingConfig timing;
   TemperamentConfig temperament;
+  NewcomerConfig newcomers;
   AudioConfig audio;
 };
 
@@ -287,6 +361,19 @@ namespace conversation_config_internal {
 
 constexpr bool isOrdered(const Range& range) { return range.min <= range.max; }
 constexpr bool isProbability(double value) { return value >= 0.0 && value <= 1.0; }
+
+/** True if no weight is negative and at least one is positive. */
+template <std::size_t N>
+constexpr bool weightsAreUsable(const double (&weights)[N]) {
+  bool anyPositive = false;
+  for (double weight : weights) {
+    if (weight < 0.0) {
+      return false;
+    }
+    anyPositive = anyPositive || weight > 0.0;
+  }
+  return anyPositive;
+}
 
 }  // namespace conversation_config_internal
 
@@ -345,10 +432,14 @@ static_assert(isProbability(kDefaults.timing.overlapStartHeat) &&
                   isProbability(kDefaults.timing.overlapFullHeat) &&
                   kDefaults.timing.overlapStartHeat < kDefaults.timing.overlapFullHeat,
               "overlapStartHeat must be below overlapFullHeat, both within 0..1");
+static_assert(isProbability(kDefaults.timing.heatedStartHeat) &&
+                  isProbability(kDefaults.timing.heatedFullHeat) &&
+                  kDefaults.timing.heatedStartHeat < kDefaults.timing.heatedFullHeat,
+              "heatedStartHeat must be below heatedFullHeat, both within 0..1");
 static_assert(kDefaults.timing.hotMinOrdinaryGapMilliseconds >= 0.0 &&
-                  kDefaults.timing.hotMinOrdinaryGapMilliseconds <=
-                      kDefaults.timing.minOrdinaryGapMilliseconds,
-              "hotMinOrdinaryGapMilliseconds must be within 0 and the cool floor");
+                  kDefaults.timing.hotMinOrdinaryGapMilliseconds <
+                      kDefaults.timing.hotMaxOrdinaryGapMilliseconds,
+              "the hot gap bounds must be non-negative and ordered");
 static_assert(isProbability(kDefaults.timing.hotOverlapProbability),
               "hotOverlapProbability must be within 0..1");
 static_assert(isOrdered(kDefaults.timing.overlapOnsetMilliseconds) &&
@@ -379,6 +470,32 @@ static_assert(isProbability(kDefaults.temperament.maxDoubleChirpProbability),
               "maxDoubleChirpProbability must be within 0..1");
 static_assert(isProbability(kDefaults.temperament.coldDoubleChirpFraction),
               "coldDoubleChirpFraction must be within 0..1");
+
+static_assert(kDefaults.newcomers.poolFirstSlot >= 1 &&
+                  kDefaults.newcomers.poolFirstSlot <= kDefaults.newcomers.poolLastSlot &&
+                  kDefaults.newcomers.poolLastSlot <= kDetectorProfileCount,
+              "the newcomer pool must be an ordered range of slots in the profile table");
+static_assert(!(kDefaults.firstCastSlot >= kDefaults.newcomers.poolFirstSlot &&
+                kDefaults.firstCastSlot <= kDefaults.newcomers.poolLastSlot) &&
+                  !(kDefaults.secondCastSlot >= kDefaults.newcomers.poolFirstSlot &&
+                    kDefaults.secondCastSlot <= kDefaults.newcomers.poolLastSlot),
+              "the two original speakers must not be in the newcomer pool");
+static_assert(conversation_config_internal::weightsAreUsable(kDefaults.newcomers.countWeights),
+              "newcomer countWeights must be non-negative with at least one positive");
+static_assert(kDefaults.newcomers.pitchInScale >= 0.0 && kDefaults.newcomers.pitchInScale <= 1.0,
+              "pitchInScale must be within 0..1");
+static_assert(isProbability(kDefaults.newcomers.startHeat) &&
+                  isProbability(kDefaults.newcomers.fullHeat) &&
+                  kDefaults.newcomers.startHeat < kDefaults.newcomers.fullHeat,
+              "newcomer startHeat must be below fullHeat, both within 0..1");
+static_assert(isProbability(kDefaults.newcomers.jumpInProbability),
+              "newcomer jumpInProbability must be within 0..1");
+static_assert(kDefaults.newcomers.minSpacingSeconds >= 0.0,
+              "newcomer minSpacingSeconds must not be negative");
+static_assert(kDefaults.newcomers.edgeMarginMilliseconds >= 0.0 &&
+                  kDefaults.newcomers.minSilenceMilliseconds >
+                      2.0 * kDefaults.newcomers.edgeMarginMilliseconds,
+              "a newcomer's minimum silence must be longer than both edge margins");
 
 static_assert(kDefaults.audio.sampleRateHertz > 0, "sampleRateHertz must be positive");
 static_assert(kDefaults.audio.amplitude > 0.0 && kDefaults.audio.amplitude <= 1.0,
